@@ -1,0 +1,39 @@
+<bookcovers>
+  <bookcover each={ bookcovers } bookcover={ this }></bookcover>
+  <a href="{ PrevLink }" onclick={ getBooks }>Prev</a>
+  <a href="{ NextLink }" onclick={ getBooks }>Next</a>
+
+  <script>
+  var self = this
+  self.bookcovers = []
+  self.targetLink = ""
+  this.on('mount', function() {
+    RiotControl.trigger('ve_bookcover_list_init')
+  })
+  RiotControl.on('se_bookcovers_changed', function(bookcovers) {
+    self.PrevLink = bookcovers['PrevLink']
+    self.NextLink = bookcovers['NextLink']
+    self.bookcovers = bookcovers['Books']
+    self.update()
+  })
+
+  getBooks(e) {
+    console.log(e.currentTarget)
+    var data_url = $(e.currentTarget).attr("href")
+    console.log(data_url)
+    RiotControl.trigger('ve_bookcover_get_data', data_url)
+    return false
+  }
+  </script>
+</bookcovers>
+
+<bookcover>
+  <div class="cover">
+    <img src="/books/{Id}/{Id}.jpg" />
+    <p>{Title}</p>
+  </div>
+
+  <script>
+    this.bookcover = opts.bookcover
+  </script>
+</bookcover>
