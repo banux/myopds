@@ -2,69 +2,131 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="">
     <meta name="author" content="">
-    <link rel="icon" href="favicon.ico">
 
-    <title>OPDS</title>
+    <title>MyOpds</title>
 
-    <!-- Latest compiled and minified CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+    <!-- Bootstrap core CSS -->
+    <link href="css/bootstrap.css" rel="stylesheet">
 
-    <!-- Optional theme -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" integrity="sha384-aUGj/X2zp5rLCbBxumKTCw2Z50WgIr1vs/PFN4praOTvYXWlVyh2UtNUU0KAUhAX" crossorigin="anonymous">
-
-    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
-    <!--[if lt IE 9]>
-      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
-      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-    <![endif]-->
+    <!-- Add custom CSS here -->
+    <link href="css/custom.css" rel="stylesheet">
   </head>
 
   <body>
-
-    <nav class="navbar navbar-inverse">
-      <div class="container">
-        <div class="navbar-header">
-          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
-            <span class="sr-only">Toggle navigation</span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="navbar-brand" href="#">Project name</a>
-        </div>
-        <div id="navbar" class="collapse navbar-collapse">
-          <ul class="nav navbar-nav">
-            <li class="active"><a href="#">Home</a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="#contact">Contact</a></li>
-          </ul>
-        </div><!--/.nav-collapse -->
-      </div>
-    </nav>
-
     <div class="container">
 
-      <div class="row">
-        <h1>OPDS</h1>
-        <bookcovers></bookcovers>
+        <nav class="navbar navbar-default">
+          <div class="container-fluid">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+             <a class="navbar-brand" href="#">MYOpds</a>
+            </div>
+            <div id="navabar" class="navbar-collapse collapse">
+              <ul class="nav navbar-nav">
+                  <li><a target="_self" href="catalog.html">Librairie</a></li>
+                  <li><a target="_self" href="category.html">Auteur</a></li>
+                  <li><a target="_self" href="category.html">Favori</a></li>
+                  <li class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown">Paramètre<span class="caret"></span></a>
+                    <ul class="dropdown-menu  nav-justified" role="menu">
+                      <li><a href="profil.html">Profil</a></li>
+                      <li class="divider"></li>
+                      <li><a href="add_cat.html">Add category</a></li>
+                      <li class="divider"></li>
+                      <li><a href="bad_data.html">Bad Metadata Book</a></li>
+                    </ul>
+                  </li>
+                </ul>
+              </div><!--/.nav-collapse -->
+            </div><!-- container -->
+        </nav> <!-- navbar -->
+
+      <div>
+        <img src="img/banner.png">
       </div>
 
-    </div><!-- /.container -->
+      <div class="row">
+        <div class="col-md-12">
+          <div class="page-header">
+            <h1>Librairie</h1>
+          </div>
+
+<!--           <div class="panel panel-default">
+            <div class="panel-heading" data-toggle="collapse" data-target="#collapsebook">
+                <h4 class="panel-title">
+                  Recherche
+                    <div class="option">
+                        <i class="glyphicon glyphicon-chevron-down"></i>
+                    </div>
+                </h4>
+            </div>
+
+            <div id="collapsebook" class="panel-body collapse">
+                <form role="form" method="post" action="#">
+
+                <div class="form-group col-md-8">
+                  <input class="form-control" name="name" type="text" placeholder="Titre" required />
+                </div>
+
+                <div class="form-group col-md-8">
+                  <input class="form-control" name="name" type="text" placeholder="Auteur" required />
+                </div>
+
+                <div class="form-group col-md-8">
+                  <select class="form-control" name="subject" required>
+                      <option value="0">Choississez un genre</option>
+                      <option value="1">Roman</option>
+                      <option value="2">Fantasy</option>
+                      <option value="3">Thriller</option>
+                      <option value="4">Essai</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                    <div class="col-md-8">
+                        <input class="btn btn-primary" type="submit" value="Search">
+                    </div>
+                </div>
+
+                </form>
+            </div>
+        </div> --> <!-- panel default -->
 
 
-    <!-- Bootstrap core JavaScript
-    ================================================== -->
-    <!-- Placed at the end of the document so the pages load faster -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
-    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
-    <!--<script src="../../assets/js/ie10-viewport-bug-workaround.js"></script>-->
+              <div class="well well-sm">
+                <strong>Listé par:</strong>
+                <a href="https://myopds.com?order=new" class="btn btn-sm btn-info">
+                    <i class="glyphicon glyphicon-star"></i> Nouveauté</a>
+                <a href="https://myopds.com?order=favori" class="btn btn-sm btn-primary">
+                    <i class="glyphicon glyphicon-heart"></i> Favori</a>
+                <a href="https://myopds.com?order=favori" class="btn btn-sm btn-primary">
+                    <i class="glyphicon glyphicon-eye-close"></i> Non lu</a>
+              </div>
+        </div> <!-- col-md-12 -->
+      </div> <!-- row -->
 
+      <div class="row">
+        <div class="col-md-12">
+          <bookcovers></bookcovers>
+      </div>
+
+    </div> <!-- col-md-12 -->
+    </div>  <!-- row -->
+
+    </div> <!-- container -->
+  </body>
+
+    <!-- JavaScript -->
+    <script src="js/jquery-1.10.2.js"></script>
+    <script src="js/bootstrap.js"></script>
     <script src="js/BookCoverStore.js"></script>
     <script src="js/bookcover.html" type="riot/tag"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/riot/2.2.4/riot+compiler.min.js"></script>
@@ -75,5 +137,5 @@
       RiotControl.addStore(bookcoverStore)
       riot.compile(function() { riot.mount('*') })
     </script>
-  </body>
+
 </html>
