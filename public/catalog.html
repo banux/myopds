@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>MyOpds</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="css/bootstrap.css" rel="stylesheet">
+
+    <!-- Add custom CSS here -->
+    <link href="css/custom.css" rel="stylesheet">
+  </head>
+  
+  <body>
+    <div class="container">
+
+        <nav class="navbar navbar-default">
+          <div class="container-fluid">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+             <a class="navbar-brand" href="#">MYOpds</a>
+            </div>
+            <div id="navabar" class="navbar-collapse collapse">
+              <ul class="nav navbar-nav">
+                  <li><a target="_self" href="catalog.html">Librairie</a></li>    
+                  <li><a target="_self" href="category.html">Auteur</a></li>           
+                  <li><a target="_self" href="category.html">Favori</a></li>
+                  <li class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown">Paramètre<span class="caret"></span></a>
+                    <ul class="dropdown-menu  nav-justified" role="menu">
+                      <li><a href="profil.html">Profil</a></li>
+                      <li class="divider"></li>          
+                      <li><a href="add_cat.html">Add category</a></li>
+                      <li class="divider"></li>   
+                      <li><a href="bad_data.html">Bad Metadata Book</a></li>
+                    </ul>  
+                  </li>       
+                </ul>           
+              </div><!--/.nav-collapse -->
+            </div><!-- container -->
+        </nav> <!-- navbar -->
+
+      <div>
+        <img src="img/banner.png">
+      </div>
+
+      <div class="row">
+        <div class="col-md-12">
+          <div class="page-header">
+            <h1>Librairie</h1>
+          </div>
+      
+<!--           <div class="panel panel-default">
+            <div class="panel-heading" data-toggle="collapse" data-target="#collapsebook">
+                <h4 class="panel-title">
+                  Recherche
+                    <div class="option">
+                        <i class="glyphicon glyphicon-chevron-down"></i>
+                    </div>
+                </h4>
+            </div>
+
+            <div id="collapsebook" class="panel-body collapse">
+                <form role="form" method="post" action="#">
+
+                <div class="form-group col-md-8">
+                  <input class="form-control" name="name" type="text" placeholder="Titre" required />
+                </div>
+
+                <div class="form-group col-md-8">
+                  <input class="form-control" name="name" type="text" placeholder="Auteur" required />
+                </div>
+
+                <div class="form-group col-md-8">
+                  <select class="form-control" name="subject" required>
+                      <option value="0">Choississez un genre</option>
+                      <option value="1">Roman</option>
+                      <option value="2">Fantasy</option>
+                      <option value="3">Thriller</option>
+                      <option value="4">Essai</option>
+                  </select>    
+                </div>
+
+                <div class="form-group">
+                    <div class="col-md-8">
+                        <input class="btn btn-primary" type="submit" value="Search">
+                    </div>
+                </div>
+
+                </form>
+            </div>
+        </div> --> <!-- panel default -->
+
+
+              <div class="well well-sm">
+                <strong>Listé par:</strong>
+                <a href="https://myopds.com?order=new" class="btn btn-sm btn-info">
+                    <i class="glyphicon glyphicon-star"></i> Nouveauté</a>
+                <a href="https://myopds.com?order=favori" class="btn btn-sm btn-primary">
+                    <i class="glyphicon glyphicon-heart"></i> Favori</a>
+                <a href="https://myopds.com?order=favori" class="btn btn-sm btn-primary">
+                    <i class="glyphicon glyphicon-eye-close"></i> Non lu</a>
+              </div>
+        </div> <!-- col-md-12 -->
+      </div> <!-- row -->
+
+      <div class="row">
+        <div class="col-md-12">
+
+          <div class="book-block">
+
+              <div class="thumbnail" data-id="1234" data-original-title="" title="">
+                <a href="#" ><img src="img/book1.jpg"></a>
+              </div>
+
+            <div id="panel-1234" class="hidden">
+                  <p>
+                    <strong>La confrérie de l'invisible<br>CREEM, David</strong>
+                  </p>
+
+                  <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » À l’université de Cap Rock, les élèves qui suivent le cursus du professeur Wiseman ne sont pas comme les autres. Leur originalité ? Ils possèdent tous des dons exceptionnels : télékinésie, télépathie, pyrokinésie… L’objectif de David en s’y inscrivant : découvrir la nature de ses capacités afin d’élucider la mystérieuse disparition de son grand-père. Une quête qui l’emportera au-delà des frontières de la réalité, dans les zones insoupçonnées de l’Invisible, là où, depuis toujours, se joue le destin de l’univers.</p>
+
+                  <div class="list-group">
+                    <div class="list-group-item">
+                      <strong>Sortie: </strong>
+                        <span class="badge">nov 2014</span>
+                     </div>
+                    <div class="list-group-item">
+                      <strong>Editeur: </strong>
+                        <span class="badge">j'ai Lu</span>
+                    </div>
+                    <div class="list-group-item">
+                      <strong>Collection: </strong>
+                        <span class="badge">Poche</span>
+                    </div>
+                    <div class="list-group-item">
+                      <strong>Genre: </strong>
+                        <span class="badge">Fantasy</span>
+                        <span class="badge">Fantastique</span>
+                    </div>
+                    <div class="list-group-item">
+                      <strong>Langues: </strong>
+                        <span class="badge">Français</span>
+                    </div>
+                    <div class="list-group-item">
+                        <strong>Ajouté le:</strong>
+                        <span class="badge">il y a 2 mois</span>
+                    </div>
+                  </div> <!-- list group -->
+ 
+            </div> <!-- panel-->
+
+          </div> <!-- book blok -->
+
+
+
+
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book2.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book3.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book4.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+          <div class="book-block">
+            <div class="thumbnail" data-id="10994" data-original-title="" title="">
+              <a href="#" title="La confrérie de l'invisible - CREEM, David">
+                <img src="img/book1.jpg" alt="La confrérie de l'invisible - CREEM, David">
+              </a>
+            </div>
+            <div id="panel-10994" class="hidden">
+              <p>
+                <a href="#" title="La confrérie de l'invisible - CREEM, David"><strong>La confrérie de l'invisible - CREEM, David</strong></a>
+              </p>
+              <p>« Bienvenue à l’Institut Californien de Parapsychologie. Cette année, nous travaillerons autour de trois grands axes : perceptions extra-sensorielles, psychokinèse et décorporation. » ...</p>
+              <div class="book-extras date">
+                <i class="glyphicon glyphicon-calendar"></i>
+                  <span class="movie-extra">nov 2014</span>
+               </div>
+              <div class="movie-extras publisher">
+                <i class="fa fa-fw fa-flag"></i> <strong>Editeur: </strong>
+                  <span class="movie-extra">j'ai Lu</span>
+              </div>
+              <div class="movie-extras collection">
+                <i class="fa fa-fw fa-flag"></i> <strong>Collection: </strong>
+                  <span class="movie-extra">Poche</span>
+              </div>
+              <div class="book-extras genres">
+                <i class="fa fa-fw fa-film"></i> <strong>Genre: </strong>
+                  <span class="movie-extra">Fantasy</span>
+                  <span class="movie-extra">Fantastique</span>
+              </div>
+              <div class="movie-extras languages">
+                <i class="fa fa-fw fa-comment-o"></i> <strong>Langues: </strong>
+                  <span class="movie-extra">Français</span>
+              </div>
+              <div class="list-group">
+                <div class="list-group-item">
+                    <strong>Ajouté le:</strong>
+                    <span class="badge">il y a 2 mois</span>
+                </div>
+                <div class="list-group-item">
+                    <strong>Publié le:</strong>
+                    <span class="badge">21 mai 2014</span>
+                </div>
+              </div> <!-- list group -->
+            </div>
+          </div> <!-- book blok -->
+
+
+    </div> <!-- col-md-12 -->
+    </div>  <!-- row -->
+    
+    </div> <!-- container -->         
+  </body>
+
+    <!-- JavaScript -->
+    <script src="js/jquery-1.10.2.js"></script>
+    <script src="js/bootstrap.js"></script>
+    <script type="text/javascript">
+      $(document).ready(function() {
+            $('.thumbnail').popover({
+                html: true,
+                placement: 'auto right',
+                trigger: 'hover',
+                delay: {show: 250, hide: 100},
+                template: '<div class="popover popover-movie" role="tooltip"><div class="arrow"></div><h3 class="popover-title"></h3><div class="popover-content"></div></div>',
+                content: function () {
+                    var id = $(this).data('id');
+                    return $('#panel-' + id).html();
+                }
+            });
+          });
+    </script>
+
+</html>
