@@ -149,13 +149,40 @@ margin-left: 10px;
     height: 299px;
     margin-left: auto;
     margin-right: auto;
+}
 
+#profil {
+  margin-top: 40px;
+}
 
+.cover>img {
+    display: left;
+    width: 350px;
+    height: 510px;
+}
 
+.titre {
+  font-size: 32px;
+  font-weight: bold;
 
+}
 
+.auteur{
+  font-size: 24px;
+  font-style: italic;
+}
 
+.label {
+  color : #000000;
+}
 
+.resume {
+  padding-bottom: 40px;
+}
+
+footer {
+  margin-top: 60px;
+}
 
 
 

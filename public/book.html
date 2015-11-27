@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>MyOpds</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="css/bootstrap.css" rel="stylesheet">
+
+    <!-- Add custom CSS here -->
+    <link href="css/custom.css" rel="stylesheet">
+  </head>
+  
+  <body>
+    <div class="container">
+
+        <nav class="navbar navbar-default">
+          <div class="container-fluid">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+             <a class="navbar-brand" href="#">MYOpds</a>
+            </div>
+            <div id="navabar" class="navbar-collapse collapse">
+              <ul class="nav navbar-nav">
+                  <li><a target="_self" href="catalog.html">Librairie</a></li>    
+                  <li><a target="_self" href="category.html">Auteur</a></li>           
+                  <li><a target="_self" href="category.html">Favori</a></li>
+                  <li class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown">Paramètre<span class="caret"></span></a>
+                    <ul class="dropdown-menu  nav-justified" role="menu">
+                      <li><a href="profil.html">Profil</a></li>
+                      <li class="divider"></li>          
+                      <li><a href="add_cat.html">Add category</a></li>
+                      <li class="divider"></li>   
+                      <li><a href="bad_data.html">Bad Metadata Book</a></li>
+                    </ul>  
+                  </li>       
+                </ul>           
+              </div><!--/.nav-collapse -->
+            </div><!-- container -->
+        </nav> <!-- navbar -->
+
+      <div>
+        <img class="img-responsive" src="img/banner.png">
+      </div>
+
+      <div class="row">
+        <div class="col-md-12" id="profil">
+
+        <div class="col-md-4">
+          <div class="cover" data-id="1234" data-original-title="" title="">
+            <img src="img/book1.jpg">
+          </div>          
+        </div>
+        <div class="col-md-8">
+          <p class="titre">TITRE</p>
+          <p class="auteur">AUTEUR, auteur</p>
+          <p><span class="label label-success">fantastique</span></p>
+          <p class="resume">À l'université de Cap Rock, les élèves qui suivent le cursus du professeur Wiseman ne sont pas comme les autres. Leur originalité? Ils possèdent tous des dons exceptionnels : télékinésie, télépathie, pyrokinésie... L'objectif de David en s'y inscrivant : découvrir la nature de ses capacités afin d'élucider la mystérieuse disparition de son grand-père. Une quête qui l'emportera au-delà des frontières de la réalité, dans les zones insoupçonnées de l'Invisible, là où, depuis toujours, se joue le destin de l'univers.</p>
+          <p> 
+             <a href="#" class="btn btn-success">Télécharger</a>
+             <a href="#" class="btn btn-success">Ajouter aux favoris</a>
+             <a href="#" class="btn btn-warning">Editer la fiche</a>
+          </p>   
+        </div>
+      
+
+
+
+        </div> <!-- col-md-12 -->
+
+
+      </div>  <!-- row -->
+
+    </div> <!-- container -->    
+
+    <footer>
+      <div class="container">
+        <div class="row">
+      
+          <div class="col-lg-12 text-center">
+            <p>Copyright &copy; MyOpds 2012-2015</p>
+          </div>
+        </div>
+      </div>
+    </footer>
+    
+     
+  </body>
+
+    <!-- JavaScript -->
+    <script src="js/jquery-1.10.2.js"></script>
+    <script src="js/bootstrap.js"></script>
+    <script type="text/javascript">
+      $(document).ready(function() {
+            $('.thumbnail').popover({
+                html: true,
+                placement: 'auto right',
+                trigger: 'hover',
+                delay: {show: 250, hide: 100},
+                template: '<div class="popover popover-movie" role="tooltip"><div class="arrow"></div><h3 class="popover-title"></h3><div class="popover-content"></div></div>',
+                content: function () {
+                    var id = $(this).data('id');
+                    return $('#panel-' + id).html();
+                }
+            });
+          });
+    </script>
+
+</html>
