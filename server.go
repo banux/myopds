@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"text/template"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -20,8 +22,9 @@ import (
 	"github.com/stretchr/graceful"
 )
 
+// ServerOption store the option for the server
 type ServerOption struct {
-	Id                int64
+	gorm.Model
 	Uuid              string
 	Password          string
 	Name              string
@@ -30,8 +33,9 @@ type ServerOption struct {
 	NumberBookPerPage int       `sql:"DEFAULT:20"`
 }
 
+// Service store sync information
 type Service struct {
-	Id           int64
+	gorm.Model
 	Url          string
 	Login        string
 	Password     string
@@ -39,24 +43,36 @@ type Service struct {
 	Type         string
 }
 
+// Author store author information
 type Author struct {
-	Id   int64
+	gorm.Model
 	Name string
 }
 
-type Category struct {
-	Id   int64
+// Tag store tag information
+type Tag struct {
+	gorm.Model
 	Name string
 }
 
+// BookTag store link beetween book and tag
+type BookTag struct {
+	gorm.Model
+	BookID uint
+	TagID  uint
+}
+
+// BookAuthor store link beetween book and author
 type BookAuthor struct {
-	Id       int64
-	BookId   int64
-	AuthorId int64
+	gorm.Model
+	BookID   uint
+	AuthorID uint
 }
 
+// Book store book information
 type Book struct {
-	Id                 int64
+	gorm.Model
+	Isbn               string
 	Title              string
 	Description        string
 	Language           string
@@ -65,22 +81,46 @@ type Book struct {
 	ServiceDownloadUrl string
 	CoverPath          string
 	CoverType          string
-	UpdatedAt          time.Time `sql:"DEFAULT:current_timestamp"`
-	Authors            []Author  `gorm:"many2many:book_authors;"`
+	Authors            []Author `gorm:"many2many:book_authors;"`
+	Tags               []Tag    `gorm:"many2many:book_tags;"`
+}
+
+// BookPage struct for page template displaying books
+type Page struct {
+	Title       string
+	Content     interface{}
+	NextPage    string
+	PrevPage    string
+	FilterBlock bool
 }
 
 var db gorm.DB
+var layout *template.Template
 
 func main() {
 	var serverOption ServerOption
 	var err error
+	var version = "0.1"
+
+	// var updater = &selfupdate.Updater{
+	// 	CurrentVersion: version,
+	// 	ApiURL:         "http://updates.helheim.net/",
+	// 	BinURL:         "http://updates.helheim.net/",
+	// 	DiffURL:        "http://updates.helheim.net/",
+	// 	Dir:            "update/",
+	// 	CmdName:        "gopds", // app name
+	// }
+	//
+	// if updater != nil {
+	// 	go updater.BackgroundRun()
+	// }
 
 	db, err = gorm.Open("sqlite3", "gopds.db")
 	if err != nil {
 		panic(err)
 	}
 
-	db.AutoMigrate(&Service{}, &Book{}, &Author{}, &Category{}, &ServerOption{}, &BookAuthor{})
+	db.AutoMigrate(&ServerOption{}, &Service{}, &Book{}, &Author{}, &Tag{}, &ServerOption{}, &BookAuthor{}, &BookTag{})
 
 	db.First(&serverOption)
 	if serverOption.Uuid == "" {
@@ -94,15 +134,28 @@ func main() {
 	}
 	db.Save(&serverOption)
 
-	go sync_opds(db)
+	//go sync_opds(db)
+	//go watchUploadDirectory("uploads")
+
+	// Setup our service export
+	//	host := "opds"
+	//	info := []string{serverOption.Name}
+	//	service, _ := mdns.NewMDNSService(host, "_opds._tcp", "", "", 3000, nil, info)
+	//fmt.Println("%v", service)
+
+	// Create the mDNS server, defer shutdown
+	//	mdnsServer, _ := mdns.NewServer(&mdns.Config{Zone: service})
+	//	defer mdnsServer.Shutdown()
+
+	layout = template.Must(template.ParseFiles("template/layout.html"))
 
 	routeur := mux.NewRouter()
 	routeur.HandleFunc("/index.{format}", rootHandler)
-	//routeur.HandleFunc("/books/{id}.{format}", bookHandler)
+	routeur.HandleFunc("/books/{id}.{format}", bookHandler)
 
 	n := negroni.Classic()
 	n.UseHandler(routeur)
-	fmt.Println("launching server")
+	fmt.Println("launching server version " + version)
 	graceful.Run(":"+strconv.Itoa(serverOption.Port), 10*time.Second, n)
 
 }
@@ -117,6 +170,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	var offset int
 	var nextLink string
 	var prevLink string
+	var bookTemplate *template.Template
 	type JsonData struct {
 		PrevLink string
 		NextLink string
@@ -157,7 +211,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	limit = serverOption.NumberBookPerPage
 	offset = limit * (pageInt - 1)
 
-	db.Limit(limit).Offset(offset).Find(&books)
+	db.Order("id desc").Limit(limit).Offset(offset).Find(&books)
 	db.Model(Book{}).Count(&booksCount)
 	fmt.Println(offset)
 	fmt.Print(booksCount)
@@ -176,7 +230,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		xmlString, _ := base_doc.WriteToString()
 		fmt.Fprintf(res, xmlString)
-	} else {
+	} else if vars["format"] == "json" {
 		data := JsonData{PrevLink: prevLink, NextLink: nextLink}
 		data.LastPage = lastPage + 1
 		data.Books = make([]Book, len(books), len(books))
@@ -185,6 +239,37 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		page, _ := json.Marshal(data)
 		fmt.Fprintf(res, string(page))
+	} else {
+		bookTemplate = template.Must(layout.Clone())
+		bookTemplate = template.Must(bookTemplate.ParseFiles("template/bookcover.html"))
+		err := bookTemplate.Execute(res, Page{
+			PrevPage:    prevLink,
+			NextPage:    nextLink,
+			Content:     books,
+			FilterBlock: true,
+		})
+		if err != nil {
+			panic(err)
+		}
+	}
+
+}
+
+func bookHandler(res http.ResponseWriter, req *http.Request) {
+	var book Book
+	var bookTemplate *template.Template
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+	db.Preload("Authors").Preload("Tags").Find(&book, bookID)
+	bookTemplate = template.Must(layout.Clone())
+	bookTemplate = template.Must(bookTemplate.ParseFiles("template/book.html"))
+	err := bookTemplate.Execute(res, Page{
+		Content: book,
+	})
+	if err != nil {
+		panic(err)
 	}
 
 }
@@ -262,7 +347,7 @@ func entry_opds(book *Book, feed *etree.Element) {
 	entry := feed.CreateElement("entry")
 
 	id := entry.CreateElement("id")
-	id.SetText(strconv.FormatInt(book.Id, 10))
+	id.SetText(strconv.Itoa(int(book.ID)))
 
 	updatedAt := entry.CreateElement("updated_at")
 	updatedAt.SetText(book.UpdatedAt.Format(time.RFC3339))
@@ -276,7 +361,7 @@ func entry_opds(book *Book, feed *etree.Element) {
 		name := authorTag.CreateElement("name")
 		name.SetText(author.Name)
 		uri := authorTag.CreateElement("uri")
-		uri.SetText("/authors/" + strconv.FormatInt(author.Id, 10))
+		uri.SetText("/authors/" + strconv.Itoa(int(author.ID)))
 	}
 
 	language := entry.CreateElement("dcterms:language")
@@ -309,7 +394,7 @@ func fullEntryOpds(book *Book, feed *etree.Element) {
 	entry := feed.CreateElement("entry")
 
 	id := entry.CreateElement("id")
-	id.SetText(strconv.FormatInt(book.Id, 10))
+	id.SetText(strconv.Itoa(int(book.ID)))
 
 	updatedAt := entry.CreateElement("updated_at")
 	updatedAt.SetText(book.UpdatedAt.Format(time.RFC3339))
@@ -323,7 +408,7 @@ func fullEntryOpds(book *Book, feed *etree.Element) {
 		name := authorTag.CreateElement("name")
 		name.SetText(author.Name)
 		uri := authorTag.CreateElement("uri")
-		uri.SetText("/authors/" + strconv.FormatInt(author.Id, 10))
+		uri.SetText("/authors/" + strconv.Itoa(int(author.ID)))
 	}
 
 	language := entry.CreateElement("dcterms:language")
@@ -508,9 +593,9 @@ func getBookInfo(db gorm.DB, book *Book, opds_book *etree.Element, baseUri strin
 		if nameElem != nil {
 			db.Where(Author{Name: nameElem.Text()}).FirstOrCreate(&authorDb)
 		}
-		db.Where(BookAuthor{BookId: book.Id, AuthorId: authorDb.Id}).FirstOrCreate(&bookAuthor)
-		bookAuthor.BookId = book.Id
-		bookAuthor.AuthorId = authorDb.Id
+		db.Where(BookAuthor{BookID: book.ID, AuthorID: authorDb.ID}).FirstOrCreate(&bookAuthor)
+		bookAuthor.BookID = book.ID
+		bookAuthor.AuthorID = authorDb.ID
 		db.Save(&bookAuthor)
 	}
 
@@ -522,7 +607,7 @@ func getBookInfo(db gorm.DB, book *Book, opds_book *etree.Element, baseUri strin
 func downloadEpub(url string, book *Book) {
 	fmt.Println("try to download " + url)
 
-	bookIdStr := strconv.FormatInt(book.Id, 10)
+	bookIdStr := strconv.Itoa(int(book.ID))
 	epubDirPath := "public/books/" + bookIdStr
 	epubFilePath := epubDirPath + "/" + bookIdStr + ".epub"
 
@@ -562,7 +647,7 @@ func downloadEpub(url string, book *Book) {
 func downloadCover(url string, format string, book *Book) string {
 	fmt.Println("try to download " + url)
 
-	bookIdStr := strconv.FormatInt(book.Id, 10)
+	bookIdStr := strconv.Itoa(int(book.ID))
 	coverDirPath := "public/books/" + bookIdStr
 	coverFilePath := coverDirPath + "/" + bookIdStr
 	if format == "image/jpeg" {
@@ -620,7 +705,7 @@ func checkLink(uri string, baseUri string) string {
 }
 
 func bookDownloadUrl(book *Book) string {
-	bookIdStr := strconv.FormatInt(book.Id, 10)
+	bookIdStr := strconv.Itoa(int(book.ID))
 	epubDirPath := "/books/" + bookIdStr
 	epubFilePath := epubDirPath + "/" + bookIdStr + ".epub"
 	return epubFilePath
@@ -629,7 +714,7 @@ func bookDownloadUrl(book *Book) string {
 func coverDownloadUrl(book *Book) string {
 	var coverFilePath string
 
-	bookIdStr := strconv.FormatInt(book.Id, 10)
+	bookIdStr := strconv.Itoa(int(book.ID))
 	coverDirPath := "/books/" + bookIdStr
 	if book.CoverType == "image/jpeg" {
 		coverFilePath = coverDirPath + "/" + bookIdStr + ".jpg"
@@ -682,5 +767,103 @@ func parseFullEntry(db gorm.DB, book *Book, opds_book *etree.Element, fullEntry 
 				book.CoverPath = downloadCover(checkLink(coverUrl, baseUri), coverType, book)
 			}
 		}
+	}
+}
+
+func watchUploadDirectory(dirPath string) {
+
+}
+
+func importFile(filePath string) {
+	var opfFileName string
+	var title string
+	var desciption string
+	var book Book
+	var authors []Author
+
+	zipReader, err := zip.OpenReader(filePath)
+	if err != nil {
+		fmt.Println("failed to open zip " + filePath)
+		fmt.Println(err)
+		return
+	}
+
+	for _, f := range zipReader.File {
+		if f.Name == "META-INF/container.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				fmt.Println("error openging " + f.Name)
+			}
+			doc := etree.NewDocument()
+			_, err = doc.ReadFrom(rc)
+			if err == nil {
+				root := doc.SelectElement("container")
+				rootFiles := root.SelectElements("rootfiles")
+				for _, rootFileTag := range rootFiles {
+					rootFile := rootFileTag.SelectElement("rootfile")
+					if rootFile != nil {
+						opfFileName = rootFile.SelectAttrValue("full-path", "")
+					}
+				}
+			} else {
+				fmt.Println(err)
+			}
+			rc.Close()
+		}
+	}
+
+	if opfFileName != "" {
+		for _, f := range zipReader.File {
+			if f.Name == opfFileName {
+				rc, err := f.Open()
+				if err != nil {
+					fmt.Println("error openging " + f.Name)
+				}
+				doc := etree.NewDocument()
+				_, err = doc.ReadFrom(rc)
+				if err == nil {
+					root := doc.SelectElement("package")
+					meta := root.SelectElement("metadata")
+					title_elem := meta.SelectElement("title")
+					title = title_elem.Text()
+					description_elem := meta.SelectElement("desciption")
+					desciption = description_elem.Text()
+					creators := meta.SelectElements("creator")
+					if creators != nil {
+						authors = make([]Author, len(creators), len(creators))
+						for i, creator := range creators {
+							db.Where("name = ? ", creator.Text()).Find(&authors[i])
+							if authors[i].ID == 0 {
+								authors[i].Name = creator.Text()
+								db.Save(&authors[i])
+							}
+						}
+					}
+
+					book.Title = title
+					book.Description = desciption
+					book.Authors = authors
+					db.Save(&book)
+
+				} else {
+					fmt.Println(err)
+				}
+			}
+		}
+	}
+	moveEpub("test.epub", &book)
+}
+
+func moveEpub(filepath string, book *Book) {
+
+	bookIdStr := strconv.Itoa(int(book.ID))
+	epubDirPath := "public/books/" + bookIdStr
+	epubFilePath := epubDirPath + "/" + bookIdStr + ".epub"
+
+	_, err := os.Open(epubFilePath)
+	if os.IsNotExist(err) {
+
+		os.MkdirAll(epubDirPath, os.ModePerm)
+		os.Rename(filepath, epubFilePath)
 	}
 }
