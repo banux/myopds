@@ -10,7 +10,7 @@
       <p class="auteur">{{ .Name }}</p>
     {{ end }}
     {{ range .Tags }}
-      <p><span class="label label-success">{{ .Name }}</span></p>
+      <p><a href="/index.html?tag={{ .Name }}"><span class="label label-success">{{ .Name }}</span></a></p>
     {{ end }}
     <p class="resume">{{ .Description }}</p>
     <p>

@@ -19,10 +19,10 @@ import (
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
+	"github.com/jpillora/overseer"
+	"github.com/jpillora/overseer/fetcher"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/graceful"
-	"github.com/jpillora/overseer"
-	 "github.com/jpillora/overseer/fetcher"
 )
 
 // ServerOption store the option for the server
@@ -125,14 +125,14 @@ func main() {
 	}
 	db.Save(&serverOption)
 
-    overseer.Run(overseer.Config{
-        Program: prog,
-        Address: ":"+strconv.Itoa(serverOption.Port),
-        Fetcher: &fetcher.HTTP{
-            URL:      "https://update.helheim.net/binaries/gopds",
-            Interval: 1 * time.Second,
-        },
-    })
+	overseer.Run(overseer.Config{
+		Program: prog,
+		Address: ":" + strconv.Itoa(serverOption.Port),
+		Fetcher: &fetcher.HTTP{
+			URL:      "https://update.helheim.net/binaries/gopds",
+			Interval: 1 * time.Second,
+		},
+	})
 }
 
 //prog(state) runs in a child process
@@ -141,19 +141,7 @@ func prog(state overseer.State) {
 	var err error
 	var version = "0.1"
 
-	// var updater = &selfupdate.Updater{
-	// 	CurrentVersion: version,
-	// 	ApiURL:         "http://updates.helheim.net/",
-	// 	BinURL:         "http://updates.helheim.net/",
-	// 	DiffURL:        "http://updates.helheim.net/",
-	// 	Dir:            "update/",
-	// 	CmdName:        "gopds", // app name
-	// }
-	//
-	// if updater != nil {
-	// 	go updater.BackgroundRun()
-	// }
-
+	db.First(&serverOption)
 
 	go syncOpds(db)
 	//go watchUploadDirectory("uploads")
@@ -187,7 +175,7 @@ func prog(state overseer.State) {
 
 	n := negroni.Classic()
 	n.UseHandler(routeur)
-	fmt.Println("launching server version " + version)
+	fmt.Println("launching server version " + version + " listening port " + strconv.Itoa(serverOption.Port))
 	graceful.Run(":"+strconv.Itoa(serverOption.Port), 10*time.Second, n)
 
 }
@@ -246,8 +234,10 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 
 	limit = serverOption.NumberBookPerPage
 	offset = limit * (pageInt - 1)
+	tag := req.URL.Query().Get("tag")
 
-	db.Order("id desc").Limit(limit).Offset(offset).Find(&books)
+	db.Order("id desc").Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Find(&books)
+
 	db.Model(Book{}).Count(&booksCount)
 	if offset+limit > booksCount {
 		nextLink = ""
@@ -287,6 +277,16 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+}
+
+// BookwithCat scope to get book with specific categories
+func BookwithCat(category string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if category == "" {
+			return db
+		}
+		return db.Joins("inner join book_tags on book_tags.book_id = books.id inner join tags on book_tags.tag_id = tags.id").Where("name = ?", category)
+	}
 }
 
 func bookHandler(res http.ResponseWriter, req *http.Request) {
