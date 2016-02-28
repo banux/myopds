@@ -9,10 +9,10 @@
     <title>MyOpds</title>
 
     <!-- Bootstrap core CSS -->
-    <link href="css/bootstrap.css" rel="stylesheet">
+    <link href="/css/bootstrap.css" rel="stylesheet">
 
     <!-- Add custom CSS here -->
-    <link href="css/custom.css" rel="stylesheet">
+    <link href="/css/custom.css" rel="stylesheet">
   </head>
 
   <body>
@@ -27,13 +27,13 @@
                 <span class="icon-bar"></span>
                 <span class="icon-bar"></span>
               </button>
-             <a class="navbar-brand" href="#">MYOpds</a>
+             <a class="navbar-brand" href="#">MYOpds {{ .Title }}</a>
             </div>
             <div id="navabar" class="navbar-collapse collapse">
               <ul class="nav navbar-nav">
-                  <li><a target="_self" href="catalog.html">Librairie</a></li>
-                  <li><a target="_self" href="category.html">Auteur</a></li>
-                  <li><a target="_self" href="category.html">Favori</a></li>
+                  <li><a target="_self" href="/index.html">Librairie</a></li>
+                  <!--<li><a target="_self" href="/index.html">Auteur</a></li>
+                  <li><a target="_self" href="/index.html">Favori</a></li>
                   <li class="dropdown">
                     <a class="dropdown-toggle" data-toggle="dropdown">Paramètre<span class="caret"></span></a>
                     <ul class="dropdown-menu  nav-justified" role="menu">
@@ -43,14 +43,14 @@
                       <li class="divider"></li>
                       <li><a href="bad_data.html">Bad Metadata Book</a></li>
                     </ul>
-                  </li>
+                  </li>-->
                 </ul>
               </div><!--/.nav-collapse -->
             </div><!-- container -->
         </nav> <!-- navbar -->
 
       <div>
-        <img src="img/banner.png">
+        <img src="/img/banner.png">
       </div>
 
       <div class="row">
@@ -102,39 +102,34 @@
 
 
               <div class="well well-sm">
-                <strong>Listé par:</strong>
+                <!--<strong>Listé par:</strong>
                 <a href="https://myopds.com?order=new" class="btn btn-sm btn-info">
                     <i class="glyphicon glyphicon-star"></i> Nouveauté</a>
                 <a href="https://myopds.com?order=favori" class="btn btn-sm btn-primary">
                     <i class="glyphicon glyphicon-heart"></i> Favori</a>
                 <a href="https://myopds.com?order=favori" class="btn btn-sm btn-primary">
-                    <i class="glyphicon glyphicon-eye-close"></i> Non lu</a>
+                    <i class="glyphicon glyphicon-eye-close"></i> Non lu</a>-->
               </div>
         </div> <!-- col-md-12 -->
       </div> <!-- row -->
 
       <div class="row">
         <div class="col-md-12">
-          <bookcovers></bookcovers>
-
-    </div> <!-- col-md-12 -->
+          {{template "content" .Content}}
+          {{ if ne .PrevPage "" }}
+            <a href="{{ .PrevPage }}" class="btn btn-primary btn-lg">Prev</a>
+          {{ end }}
+          {{ if ne .NextPage "" }}
+            <a href="{{ .NextPage }}" class="btn btn-primary btn-lg">Next</a>
+          {{ end }}
+        </div> <!-- col-md-12 -->
     </div>  <!-- row -->
 
     </div> <!-- container -->
   </body>
 
     <!-- JavaScript -->
-    <script src="js/jquery-1.10.2.js"></script>
-    <script src="js/bootstrap.js"></script>
-    <script src="js/BookCoverStore.js"></script>
-    <script src="js/bookcover.html" type="riot/tag"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/riot/2.2.4/riot+compiler.min.js"></script>
-    <script src="js/riotcontrol.js"></script>
-
-    <script>
-      var bookcoverStore = BookCoverStore()
-      RiotControl.addStore(bookcoverStore)
-      riot.compile(function() { riot.mount('*') })
-    </script>
+    <script src="/js/jquery-1.10.2.js"></script>
+    <script src="/js/bootstrap.js"></script>
 
 </html>

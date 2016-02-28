@@ -1,0 +1,22 @@
+{{define "content"}}
+  <div class="col-md-4">
+    <div class="cover" data-id="" data-original-title="" title="">
+      <img src="/books/{{ .ID }}/{{ .ID }}.jpg">
+    </div>
+  </div>
+  <div class="col-md-8">
+    <p class="titre">{{ .Title }}</p>
+    {{ range .Authors }}
+      <p class="auteur">{{ .Name }}</p>
+    {{ end }}
+    {{ range .Tags }}
+      <p><span class="label label-success">{{ .Name }}</span></p>
+    {{ end }}
+    <p class="resume">{{ .Description }}</p>
+    <p>
+       <a href="/books/{{ .ID }}/{{ .ID }}.epub" class="btn btn-success">Télécharger</a>
+       <a href="#" class="btn btn-success">Ajouter aux favoris</a>
+       <a href="#" class="btn btn-warning">Editer la fiche</a>
+    </p>
+  </div>
+{{ end }}

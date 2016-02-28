@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/graceful"
+	"github.com/jpillora/overseer"
+	 "github.com/jpillora/overseer/fetcher"
 )
 
 // ServerOption store the option for the server
@@ -29,8 +32,8 @@ type ServerOption struct {
 	Password          string
 	Name              string
 	LastSync          time.Time `sql:"DEFAULT:current_timestamp"`
-	Port              int       `sql:"DEFAULT:3000"`
-	NumberBookPerPage int       `sql:"DEFAULT:20"`
+	Port              int       `sql:"DEFAULT:80"`
+	NumberBookPerPage int       `sql:"DEFAULT:50"`
 }
 
 // Service store sync information
@@ -97,23 +100,11 @@ type Page struct {
 var db gorm.DB
 var layout *template.Template
 
+//create another main() to run the overseer process
+//and then convert your old main() into a 'prog(state)'
 func main() {
 	var serverOption ServerOption
 	var err error
-	var version = "0.1"
-
-	// var updater = &selfupdate.Updater{
-	// 	CurrentVersion: version,
-	// 	ApiURL:         "http://updates.helheim.net/",
-	// 	BinURL:         "http://updates.helheim.net/",
-	// 	DiffURL:        "http://updates.helheim.net/",
-	// 	Dir:            "update/",
-	// 	CmdName:        "gopds", // app name
-	// }
-	//
-	// if updater != nil {
-	// 	go updater.BackgroundRun()
-	// }
 
 	db, err = gorm.Open("sqlite3", "gopds.db")
 	if err != nil {
@@ -134,7 +125,37 @@ func main() {
 	}
 	db.Save(&serverOption)
 
-	//go sync_opds(db)
+    overseer.Run(overseer.Config{
+        Program: prog,
+        Address: ":"+strconv.Itoa(serverOption.Port),
+        Fetcher: &fetcher.HTTP{
+            URL:      "https://update.helheim.net/binaries/gopds",
+            Interval: 1 * time.Second,
+        },
+    })
+}
+
+//prog(state) runs in a child process
+func prog(state overseer.State) {
+	var serverOption ServerOption
+	var err error
+	var version = "0.1"
+
+	// var updater = &selfupdate.Updater{
+	// 	CurrentVersion: version,
+	// 	ApiURL:         "http://updates.helheim.net/",
+	// 	BinURL:         "http://updates.helheim.net/",
+	// 	DiffURL:        "http://updates.helheim.net/",
+	// 	Dir:            "update/",
+	// 	CmdName:        "gopds", // app name
+	// }
+	//
+	// if updater != nil {
+	// 	go updater.BackgroundRun()
+	// }
+
+
+	go syncOpds(db)
 	//go watchUploadDirectory("uploads")
 
 	// Setup our service export
@@ -147,17 +168,32 @@ func main() {
 	//	mdnsServer, _ := mdns.NewServer(&mdns.Config{Zone: service})
 	//	defer mdnsServer.Shutdown()
 
+	currentPid := os.Getpid()
+	pidFile, err := os.Create("/tmp/gopds.pid")
+	if err != nil {
+		panic("can't write pid file")
+	}
+	pidFile.WriteString(strconv.Itoa(currentPid))
+	pidFile.Close()
+
 	layout = template.Must(template.ParseFiles("template/layout.html"))
 
 	routeur := mux.NewRouter()
 	routeur.HandleFunc("/index.{format}", rootHandler)
 	routeur.HandleFunc("/books/{id}.{format}", bookHandler)
+	routeur.HandleFunc("/opensearch.xml", opensearchHandler)
+	routeur.HandleFunc("/search.atom", searchHandler)
+	routeur.HandleFunc("/", redirectRootHandler)
 
 	n := negroni.Classic()
 	n.UseHandler(routeur)
 	fmt.Println("launching server version " + version)
 	graceful.Run(":"+strconv.Itoa(serverOption.Port), 10*time.Second, n)
 
+}
+
+func redirectRootHandler(res http.ResponseWriter, req *http.Request) {
+	http.Redirect(res, req, "/index.html", http.StatusMovedPermanently)
 }
 
 func rootHandler(res http.ResponseWriter, req *http.Request) {
@@ -213,8 +249,6 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 
 	db.Order("id desc").Limit(limit).Offset(offset).Find(&books)
 	db.Model(Book{}).Count(&booksCount)
-	fmt.Println(offset)
-	fmt.Print(booksCount)
 	if offset+limit > booksCount {
 		nextLink = ""
 	}
@@ -338,6 +372,11 @@ func base_opds(doc *etree.Document, uuid string, name string, totalResult int, p
 		nextLinkXml.CreateAttr("rel", "next")
 	}
 
+	linkSearch := feed.CreateElement("link")
+	linkSearch.CreateAttr("type", "application/opensearchdescription+xml")
+	linkSearch.CreateAttr("href", "/opensearch.xml")
+	linkSearch.CreateAttr("rel", "search")
+
 	return feed
 }
 
@@ -458,7 +497,7 @@ func fullEntryOpds(book *Book, feed *etree.Element) {
 
 }
 
-func sync_opds(db gorm.DB) {
+func syncOpds(db gorm.DB) {
 	var services []Service
 	var nextUrl string
 	var req *http.Request
@@ -466,43 +505,46 @@ func sync_opds(db gorm.DB) {
 
 	db.Find(&services)
 	// TODO: check last sync
-	for _, service := range services {
-		nextUrl = "first"
-		reqUrl = ""
+	for {
+		for _, service := range services {
+			nextUrl = "first"
+			reqUrl = ""
 
-		for nextUrl != "" {
-			client := &http.Client{}
+			for nextUrl != "" {
+				client := &http.Client{}
 
-			if nextUrl == "first" {
-				reqUrl = service.Url
-			} else {
-				reqUrl = checkLink(nextUrl, service.Url)
-			}
+				if nextUrl == "first" {
+					reqUrl = service.Url
+				} else {
+					reqUrl = checkLink(nextUrl, service.Url)
+				}
 
-			fmt.Println("parsing " + reqUrl)
-			req, _ = http.NewRequest("GET", reqUrl, nil)
+				fmt.Println("parsing " + reqUrl)
+				req, _ = http.NewRequest("GET", reqUrl, nil)
 
-			if service.Type == "basic_auth" {
-				req.SetBasicAuth(service.Login, service.Password)
-			}
+				if service.Type == "basic_auth" {
+					req.SetBasicAuth(service.Login, service.Password)
+				}
 
-			resp, err := client.Do(req)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+				resp, err := client.Do(req)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
 
-			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Println(string(body))
-			doc := etree.NewDocument()
-			err = doc.ReadFromBytes(body)
-			if err == nil {
-				root := doc.SelectElement("feed")
-				if root != nil {
-					nextUrl = parseFeed(root, db, &service)
+				body, _ := ioutil.ReadAll(resp.Body)
+				fmt.Println(string(body))
+				doc := etree.NewDocument()
+				err = doc.ReadFromBytes(body)
+				if err == nil {
+					root := doc.SelectElement("feed")
+					if root != nil {
+						nextUrl = parseFeed(root, db, &service)
+					}
 				}
 			}
 		}
+		time.Sleep(24 * time.Hour)
 	}
 
 	fmt.Println("finish sync")
@@ -539,6 +581,8 @@ func getBookInfo(db gorm.DB, book *Book, opds_book *etree.Element, baseUri strin
 	var coverType string
 	var authorDb Author
 	var bookAuthor BookAuthor
+	var tag Tag
+	var bookTag BookTag
 
 	links := opds_book.SelectElements("link")
 	for _, link := range links {
@@ -597,6 +641,18 @@ func getBookInfo(db gorm.DB, book *Book, opds_book *etree.Element, baseUri strin
 		bookAuthor.BookID = book.ID
 		bookAuthor.AuthorID = authorDb.ID
 		db.Save(&bookAuthor)
+	}
+
+	categories := opds_book.SelectElements("category")
+	for _, category := range categories {
+		tag = Tag{}
+		tagLabel := category.SelectAttr("label")
+		tagLabelStr := tagLabel.Value
+		db.Where(Tag{Name: tagLabelStr}).FirstOrCreate(&tag)
+		db.Where(BookTag{TagID: tag.ID, BookID: book.ID}).FirstOrCreate(&bookTag)
+		bookTag.BookID = book.ID
+		bookTag.TagID = tag.ID
+		db.Save(&bookTag)
 	}
 
 	if epubUrl != "" {
@@ -866,4 +922,83 @@ func moveEpub(filepath string, book *Book) {
 		os.MkdirAll(epubDirPath, os.ModePerm)
 		os.Rename(filepath, epubFilePath)
 	}
+}
+
+func opensearchHandler(res http.ResponseWriter, req *http.Request) {
+	var xmlString string
+
+	res.Header().Set("Content-Type", "application/xml; charset=utf-8")
+
+	baseDoc := etree.NewDocument()
+	baseDoc.Indent(2)
+
+	opensearch := baseDoc.CreateElement("OpenSearchDescription")
+	opensearch.CreateAttr("xmlns", "http://a9.com/-/spec/opensearch/1.1/")
+
+	shortName := opensearch.CreateElement("ShortName")
+	shortName.SetText("Opds Search")
+
+	descripton := opensearch.CreateElement("Description")
+	descripton.SetText("Search")
+
+	inputEncoding := opensearch.CreateElement("InputEncoding")
+	inputEncoding.SetText("UTF-8")
+
+	outputEncoding := opensearch.CreateElement("OutputEncoding")
+	outputEncoding.SetText("UTF-8")
+
+	// htmlUrl := opensearch.CreateElement("Url")
+	// htmlUrl.CreateAttr("type", "text/html")
+	// htmlUrl.CreateAttr("template", "http://www.feedbooks.com/search?query={searchTerms}")
+
+	atomURL := opensearch.CreateElement("Url")
+	atomURL.CreateAttr("type", "application/atom+xml")
+	atomURL.CreateAttr("template", RootURL(req)+"/search.atom?query={searchTerms}")
+
+	// <Url type="application/x-suggestions+json" rel="suggestions" template="http://www.feedbooks.com/search.json?query={searchTerms}"/>
+	// <Url type="application/x-suggestions+xml" rel="suggestions" template="http://www.feedbooks.com/suggest.xml?query={searchTerms}"/>
+
+	query := opensearch.CreateElement("Query")
+	query.CreateAttr("role", "example")
+	query.CreateAttr("searchTerms", "robot")
+
+	xmlString, _ = baseDoc.WriteToString()
+
+	fmt.Fprintf(res, xmlString)
+}
+
+func searchHandler(res http.ResponseWriter, req *http.Request) {
+	var xmlString string
+
+	res.Header().Set("Content-Type", "application/atom+xml; charset=utf-8")
+
+	baseDoc := etree.NewDocument()
+	baseDoc.Indent(2)
+
+	search := req.URL.Query().Get("query")
+	books := findBookBySearch(search)
+
+	feed := base_opds(baseDoc, RootURL(req)+"/search.atom", search, len(books), len(books), 0, "", "")
+
+	for _, book := range books {
+		entry_opds(&book, feed)
+	}
+
+	xmlString, _ = baseDoc.WriteToString()
+
+	fmt.Fprintf(res, xmlString)
+
+}
+
+func findBookBySearch(search string) []Book {
+	var books []Book
+
+	search = strings.TrimLeft(search, " ")
+	db.Joins("left join book_authors on books.id = book_authors.book_id left join authors on book_authors.author_id = authors.id").Where("title LIKE ? OR description like ? OR authors.name LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%").Find(&books)
+	return books
+}
+
+// RootURL return url with absolute path
+func RootURL(req *http.Request) string {
+	return "http://" + req.Host
 }
