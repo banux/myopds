@@ -1,0 +1,22 @@
+{{define "content"}}
+  <form method="post" action="/books/{{ .ID }}/edit">
+    <div class="form-group">
+      <label for="title">Titre</label>
+      <input type="text" class="form-control" id="title" name="title" placeholder="Titre" value="{{ .Title }}">
+    </div>
+    <!-- <div class="form-group">
+      <label for="exampleInputFile">File input</label>
+      <input type="file" id="exampleInputFile">
+      <p class="help-block">Example block-level help text here.</p>
+    </div> -->
+    <div class="form-group">
+      <label for="tags">Tags</label>
+      <input type="text" class="form-control" id="tags" name="tags" value="{{ .TagFormData }}" data-role="tagsinput">
+    </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea class="form-control" rows="3" name="description" >{{ .Description }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-default">Submit</button>
+  </form>
+{{end}}

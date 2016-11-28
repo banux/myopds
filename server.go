@@ -4,31 +4,35 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
-	"html"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/beevik/etree"
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
-	"github.com/jpillora/overseer"
-	"github.com/jpillora/overseer/fetcher"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/graceful"
 )
+
+const jpgMediaType = "image/jpeg"
+const pngMediaType = "image/png"
 
 // ServerOption store the option for the server
 type ServerOption struct {
 	gorm.Model
-	Uuid              string
+	UUID              string
 	Password          string
 	Name              string
 	LastSync          time.Time `sql:"DEFAULT:current_timestamp"`
@@ -39,56 +43,14 @@ type ServerOption struct {
 // Service store sync information
 type Service struct {
 	gorm.Model
-	Url          string
+	URL          string
 	Login        string
 	Password     string
 	RefreshToken string
 	Type         string
 }
 
-// Author store author information
-type Author struct {
-	gorm.Model
-	Name string
-}
-
-// Tag store tag information
-type Tag struct {
-	gorm.Model
-	Name string
-}
-
-// BookTag store link beetween book and tag
-type BookTag struct {
-	gorm.Model
-	BookID uint
-	TagID  uint
-}
-
-// BookAuthor store link beetween book and author
-type BookAuthor struct {
-	gorm.Model
-	BookID   uint
-	AuthorID uint
-}
-
-// Book store book information
-type Book struct {
-	gorm.Model
-	Isbn               string
-	Title              string
-	Description        string
-	Language           string
-	Publisher          string
-	OpdsIdentifier     string
-	ServiceDownloadUrl string
-	CoverPath          string
-	CoverType          string
-	Authors            []Author `gorm:"many2many:book_authors;"`
-	Tags               []Tag    `gorm:"many2many:book_tags;"`
-}
-
-// BookPage struct for page template displaying books
+// Page struct for page template displaying books
 type Page struct {
 	Title       string
 	Content     interface{}
@@ -97,14 +59,22 @@ type Page struct {
 	FilterBlock bool
 }
 
-var db gorm.DB
+var db *gorm.DB
 var layout *template.Template
+
+var importDir = kingpin.Flag("import", "Import directory path").Short('i').String()
+var serverMode = kingpin.Flag("server", "Server mode").Short('s').Bool()
+var metaMode = kingpin.Flag("meta", "Regen all metada").Short('m').Bool()
+
+type server struct{}
 
 //create another main() to run the overseer process
 //and then convert your old main() into a 'prog(state)'
 func main() {
 	var serverOption ServerOption
+	var books []Book
 	var err error
+	var version = "0.1"
 
 	db, err = gorm.Open("sqlite3", "gopds.db")
 	if err != nil {
@@ -114,8 +84,8 @@ func main() {
 	db.AutoMigrate(&ServerOption{}, &Service{}, &Book{}, &Author{}, &Tag{}, &ServerOption{}, &BookAuthor{}, &BookTag{})
 
 	db.First(&serverOption)
-	if serverOption.Uuid == "" {
-		serverOption.Uuid = uuid.NewRandom().String()
+	if serverOption.UUID == "" {
+		serverOption.UUID = uuid.NewRandom().String()
 	}
 	if serverOption.Name == "" {
 		serverOption.Name = "MyOPDS"
@@ -125,26 +95,10 @@ func main() {
 	}
 	db.Save(&serverOption)
 
-	overseer.Run(overseer.Config{
-		Program: prog,
-		Address: ":" + strconv.Itoa(serverOption.Port),
-		Fetcher: &fetcher.HTTP{
-			URL:      "https://update.helheim.net/binaries/gopds",
-			Interval: 1 * time.Second,
-		},
-	})
-}
+	kingpin.Version(version)
+	kingpin.Parse()
 
-//prog(state) runs in a child process
-func prog(state overseer.State) {
-	var serverOption ServerOption
-	var err error
-	var version = "0.1"
-
-	db.First(&serverOption)
-
-	go syncOpds(db)
-	//go watchUploadDirectory("uploads")
+	//go syncOpds(db)
 
 	// Setup our service export
 	//	host := "opds"
@@ -156,27 +110,64 @@ func prog(state overseer.State) {
 	//	mdnsServer, _ := mdns.NewServer(&mdns.Config{Zone: service})
 	//	defer mdnsServer.Shutdown()
 
-	currentPid := os.Getpid()
-	pidFile, err := os.Create("/tmp/gopds.pid")
-	if err != nil {
-		panic("can't write pid file")
+	if *serverMode == true {
+
+		currentPid := os.Getpid()
+		pidFile, err := os.Create("/tmp/gopds.pid")
+		if err != nil {
+			panic("can't write pid file")
+		}
+		pidFile.WriteString(strconv.Itoa(currentPid))
+		pidFile.Close()
+
+		layout = template.Must(template.ParseFiles("template/layout.html"))
+
+		// lis, _ := net.Listen("tcp", ":50051")
+		// s := grpc.NewServer()
+		// book.RegisterUploaderServer(s, &server{})
+		// if err := s.Serve(lis); err != nil {
+		// 	log.Fatalf("failed to serve: %v", err)
+		// }
+
+		routeur := mux.NewRouter()
+		routeur.HandleFunc("/index.{format}", rootHandler)
+		routeur.HandleFunc("/books/new.html", newBookHandler)
+		routeur.HandleFunc("/books/{id}.{format}", bookHandler)
+		routeur.HandleFunc("/books/{id}/delete", deleteBookHandler)
+		routeur.HandleFunc("/books/{id}/edit", editBookHandler)
+		routeur.HandleFunc("/viewer.js", viewer)
+		routeur.HandleFunc("/sw.js", sw)
+		routeur.HandleFunc("/books/{id}/reader/", bookIndex)
+		routeur.HandleFunc("/books/{id}/reader/manifest.json", getManifest)
+		routeur.HandleFunc("/books/{id}/reader/webapp.webmanifest", getWebAppManifest)
+		routeur.HandleFunc("/books/{id}/reader/index.html", bookIndex)
+		routeur.HandleFunc("/books/{id}/reader/{asset:.*}", getAsset)
+		routeur.HandleFunc("/opensearch.xml", opensearchHandler)
+		routeur.HandleFunc("/search.{format}", searchHandler)
+		routeur.HandleFunc("/books/changeTag", changeTagHandler)
+		routeur.HandleFunc("/", redirectRootHandler)
+
+		n := negroni.Classic()
+		n.UseHandler(routeur)
+		fmt.Println("launching server version " + version + " listening port " + strconv.Itoa(serverOption.Port))
+		graceful.Run(":"+strconv.Itoa(serverOption.Port), 10*time.Second, n)
 	}
-	pidFile.WriteString(strconv.Itoa(currentPid))
-	pidFile.Close()
 
-	layout = template.Must(template.ParseFiles("template/layout.html"))
+	if *importDir != "" {
+		files, _ := ioutil.ReadDir(*importDir)
+		for _, f := range files {
+			fmt.Println(f.Name())
+			importFile(*importDir + "/" + f.Name())
+		}
+	}
 
-	routeur := mux.NewRouter()
-	routeur.HandleFunc("/index.{format}", rootHandler)
-	routeur.HandleFunc("/books/{id}.{format}", bookHandler)
-	routeur.HandleFunc("/opensearch.xml", opensearchHandler)
-	routeur.HandleFunc("/search.atom", searchHandler)
-	routeur.HandleFunc("/", redirectRootHandler)
+	if *metaMode == true {
 
-	n := negroni.Classic()
-	n.UseHandler(routeur)
-	fmt.Println("launching server version " + version + " listening port " + strconv.Itoa(serverOption.Port))
-	graceful.Run(":"+strconv.Itoa(serverOption.Port), 10*time.Second, n)
+		db.Where("edited = 0").Find(&books)
+		for _, book := range books {
+			book.getMetada()
+		}
+	}
 
 }
 
@@ -189,21 +180,21 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	var booksCount int
 	var serverOption ServerOption
 	var page string
-	var pageInt int = 1
-	var limit int = 0
+	var pageInt = 1
+	var limit = 0
 	var offset int
 	var nextLink string
 	var prevLink string
 	var bookTemplate *template.Template
-	type JsonData struct {
+	type JSONData struct {
 		PrevLink string
 		NextLink string
 		LastPage int
 		Books    []Book
 	}
 
-	base_doc := etree.NewDocument()
-	base_doc.Indent(2)
+	baseDoc := etree.NewDocument()
+	baseDoc.Indent(2)
 
 	db.First(&serverOption)
 
@@ -235,10 +226,15 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	limit = serverOption.NumberBookPerPage
 	offset = limit * (pageInt - 1)
 	tag := req.URL.Query().Get("tag")
+	author := req.URL.Query().Get("author")
+	authorIDStr := req.URL.Query().Get("author_id")
+	authorID, _ := strconv.Atoi(authorIDStr)
+	order := req.URL.Query().Get("order")
 
-	db.Order("id desc").Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Find(&books)
+	fmt.Println(authorID)
+	db.Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookOrder(order)).Find(&books)
 
-	db.Model(Book{}).Count(&booksCount)
+	db.Model(Book{}).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Count(&booksCount)
 	if offset+limit > booksCount {
 		nextLink = ""
 	}
@@ -248,14 +244,23 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 
 	if vars["format"] == "atom" {
 		res.Header().Set("Content-Type", "application/atom+xml")
-		feed := base_opds(base_doc, serverOption.Uuid, serverOption.Name, booksCount, serverOption.NumberBookPerPage, offset+1, prevLink, nextLink)
+		feed := baseOpds(baseDoc, serverOption.UUID, serverOption.Name, booksCount, serverOption.NumberBookPerPage, offset+1, prevLink, nextLink)
 		for _, book := range books {
-			entry_opds(&book, feed)
+			entryOpds(&book, feed)
 		}
-		xmlString, _ := base_doc.WriteToString()
+
+		tags := []string{"Science-Fiction", "Fantasy", "Thriller"}
+		for _, tag := range tags {
+			link := feed.CreateElement("link")
+			link.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+			link.CreateAttr("href", "/index.atom?tag="+tag)
+			link.CreateAttr("rel", "http://opds-spec.org/sort/popular")
+			link.CreateAttr("title", tag)
+		}
+		xmlString, _ := baseDoc.WriteToString()
 		fmt.Fprintf(res, xmlString)
 	} else if vars["format"] == "json" {
-		data := JsonData{PrevLink: prevLink, NextLink: nextLink}
+		data := JSONData{PrevLink: prevLink, NextLink: nextLink}
 		data.LastPage = lastPage + 1
 		data.Books = make([]Book, len(books), len(books))
 		for i, book := range books {
@@ -289,6 +294,40 @@ func BookwithCat(category string) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
+// BookwithAuthor scope to get book with specific author
+func BookwithAuthor(author string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if author == "" {
+			return db
+		}
+		return db.Joins("inner join book_authors on book_authors.book_id = books.id inner join authors on book_authors.author_id = authors.id").Where("name = ?", author)
+	}
+}
+
+// BookwithAuthorID scope to get book with specific author
+func BookwithAuthorID(authorID int) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if authorID == 0 {
+			return db
+		}
+		return db.Joins("inner join book_authors on book_authors.book_id = books.id inner join authors on book_authors.author_id = authors.id").Where("authors.id = ?", authorID)
+	}
+}
+
+// BookOrder scope to order book
+func BookOrder(order string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		fmt.Println(order)
+		if order == "new" {
+			return db.Order("id desc")
+		}
+		if order == "old" {
+			return db.Order("id asc")
+		}
+		return db.Order("id desc")
+	}
+}
+
 func bookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
 	var bookTemplate *template.Template
@@ -297,18 +336,37 @@ func bookHandler(res http.ResponseWriter, req *http.Request) {
 
 	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
 	db.Preload("Authors").Preload("Tags").Find(&book, bookID)
-	bookTemplate = template.Must(layout.Clone())
-	bookTemplate = template.Must(bookTemplate.ParseFiles("template/book.html"))
-	err := bookTemplate.Execute(res, Page{
-		Content: book,
-	})
-	if err != nil {
-		panic(err)
+
+	if vars["format"] == "html" {
+		bookTemplate = template.Must(layout.Clone())
+		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book.html"))
+		err := bookTemplate.Execute(res, Page{
+			Content: book,
+		})
+		if err != nil {
+
+		}
+	}
+
+	if vars["format"] == "atom" {
+		res.Header().Set("Content-Type", "application/atom+xml; charset=utf-8")
+
+		baseDoc := etree.NewDocument()
+		baseDoc.Indent(2)
+
+		baseDoc.CreateProcInst("xml", `version="1.0" encoding="UTF-8"`)
+
+		feed := baseDoc.CreateElement("entry")
+
+		fullEntryOpds(&book, feed, RootURL(req))
+		xmlString, _ := baseDoc.WriteToString()
+		fmt.Fprintf(res, xmlString)
+
 	}
 
 }
 
-func base_opds(doc *etree.Document, uuid string, name string, totalResult int, perPage int, offset int, prevLink string, nextLink string) *etree.Element {
+func baseOpds(doc *etree.Document, uuid string, name string, totalResult int, perPage int, offset int, prevLink string, nextLink string) *etree.Element {
 	var totalResultText string
 	var perPageText string
 	var offsetText string
@@ -335,41 +393,41 @@ func base_opds(doc *etree.Document, uuid string, name string, totalResult int, p
 	updatedAt.SetText(time.Now().Format(time.RFC3339))
 
 	author := feed.CreateElement("author")
-	author_name := author.CreateElement("name")
-	author_name.SetText("MyOPDS")
-	author_uri := author.CreateElement("uri")
-	author_uri.SetText("http://www.myopds.com")
+	authorName := author.CreateElement("name")
+	authorName.SetText("MyOPDS")
+	authorURI := author.CreateElement("uri")
+	authorURI.SetText("http://www.myopds.com")
 
 	if totalResult > 0 {
-		totalResultXml := feed.CreateElement("opensearch:totalResults")
+		totalResultXML := feed.CreateElement("opensearch:totalResults")
 		totalResultText = strconv.Itoa(totalResult)
-		totalResultXml.SetText(totalResultText)
+		totalResultXML.SetText(totalResultText)
 	}
 	if perPage > 0 {
-		perPageXml := feed.CreateElement("opensearch:itemsPerPage")
+		perPageXML := feed.CreateElement("opensearch:itemsPerPage")
 		perPageText = strconv.Itoa(perPage)
-		perPageXml.SetText(perPageText)
+		perPageXML.SetText(perPageText)
 	}
 	if offset > 1 {
-		offsetXml := feed.CreateElement("opensearch:startIndex")
+		offsetXML := feed.CreateElement("opensearch:startIndex")
 		offsetText = strconv.Itoa(offset)
-		offsetXml.SetText(offsetText)
+		offsetXML.SetText(offsetText)
 	}
 
 	if prevLink != "" {
-		prevLinkXml := feed.CreateElement("link")
-		prevLinkXml.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
-		prevLinkXml.CreateAttr("title", "Previous")
-		prevLinkXml.CreateAttr("href", prevLink)
-		prevLinkXml.CreateAttr("rel", "previous")
+		prevLinkXML := feed.CreateElement("link")
+		prevLinkXML.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		prevLinkXML.CreateAttr("title", "Previous")
+		prevLinkXML.CreateAttr("href", prevLink)
+		prevLinkXML.CreateAttr("rel", "previous")
 	}
 
 	if nextLink != "" {
-		nextLinkXml := feed.CreateElement("link")
-		nextLinkXml.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
-		nextLinkXml.CreateAttr("title", "Next")
-		nextLinkXml.CreateAttr("href", nextLink)
-		nextLinkXml.CreateAttr("rel", "next")
+		nextLinkXML := feed.CreateElement("link")
+		nextLinkXML.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		nextLinkXML.CreateAttr("title", "Next")
+		nextLinkXML.CreateAttr("href", nextLink)
+		nextLinkXML.CreateAttr("rel", "next")
 	}
 
 	linkSearch := feed.CreateElement("link")
@@ -380,7 +438,7 @@ func base_opds(doc *etree.Document, uuid string, name string, totalResult int, p
 	return feed
 }
 
-func entry_opds(book *Book, feed *etree.Element) {
+func entryOpds(book *Book, feed *etree.Element) {
 	var authors []Author
 
 	entry := feed.CreateElement("entry")
@@ -413,24 +471,40 @@ func entry_opds(book *Book, feed *etree.Element) {
 	link := entry.CreateElement("link")
 	link.CreateAttr("rel", "http://opds-spec.org/acquisition")
 	link.CreateAttr("type", "application/epub+zip")
-	link.CreateAttr("href", bookDownloadUrl(book))
+	link.CreateAttr("href", book.DownloadURL())
 
-	if coverDownloadUrl(book) != "" {
+	if book.CoverDownloadURL() != "" {
 		linkCover := entry.CreateElement("link")
 		linkCover.CreateAttr("rel", "http://opds-spec.org/image")
-		if book.CoverType == "image/jpeg" {
-			linkCover.CreateAttr("type", "image/jpeg")
-		} else if book.CoverType == "image/png" {
-			linkCover.CreateAttr("type", "image/png")
+		if book.CoverType == jpgMediaType {
+			linkCover.CreateAttr("type", jpgMediaType)
+		} else if book.CoverType == pngMediaType {
+			linkCover.CreateAttr("type", pngMediaType)
 		}
-		linkCover.CreateAttr("href", coverDownloadUrl(book))
+		linkCover.CreateAttr("href", book.CoverDownloadURL())
 	}
+
+	linkFull := entry.CreateElement("link")
+	linkFull.CreateAttr("rel", "alternate")
+	linkFull.CreateAttr("href", "/books/"+strconv.Itoa(int(book.ID))+".atom")
+	linkFull.CreateAttr("type", "application/atom+xml;type=entry;profile=opds-catalog")
+	linkFull.CreateAttr("tile", "Full entry")
+
 }
 
-func fullEntryOpds(book *Book, feed *etree.Element) {
+func fullEntryOpds(book *Book, feed *etree.Element, baseURL string) {
 	var authors []Author
 
-	entry := feed.CreateElement("entry")
+	entry := feed
+
+	feed.CreateAttr("xml:lang", "fr")
+	feed.CreateAttr("xmlns:dcterms", "http://purl.org/dc/terms/")
+	feed.CreateAttr("xmlns:thr", "http://purl.org/syndication/thread/1.0")
+	feed.CreateAttr("xmlns:opds", "http://opds-spec.org/2010/catalog")
+	feed.CreateAttr("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+	feed.CreateAttr("xmlns:app", "http://www.w3.org/2007/app")
+	feed.CreateAttr("xmlns", "http://www.w3.org/2005/Atom")
+	feed.CreateAttr("xmlns:opensearch", "http://a9.com/-/spec/opensearch/1.1/")
 
 	id := entry.CreateElement("id")
 	id.SetText(strconv.Itoa(int(book.ID)))
@@ -450,19 +524,33 @@ func fullEntryOpds(book *Book, feed *etree.Element) {
 		uri.SetText("/authors/" + strconv.Itoa(int(author.ID)))
 	}
 
-	language := entry.CreateElement("dcterms:language")
-	language.SetText(book.Language)
+	if book.Language != "" {
+		language := entry.CreateElement("dcterms:language")
+		language.SetText(book.Language)
+	}
 
 	summary := entry.CreateElement("summary")
 	summary.CreateAttr("type", "text")
 	summary.CreateCharData(book.Description)
 
+	for _, cat := range book.Tags {
+		catElem := entry.CreateElement("category")
+		catElem.CreateAttr("scheme", "http://myopds.com/tags")
+		catElem.CreateAttr("label", cat.Name)
+		catElem.CreateAttr("term", cat.Name)
+	}
+
 	link := entry.CreateElement("link")
 	link.CreateAttr("rel", "http://opds-spec.org/acquisition")
 	link.CreateAttr("type", "application/epub+zip")
-	link.CreateAttr("href", bookDownloadUrl(book))
+	link.CreateAttr("href", book.DownloadURL())
 
-	if coverDownloadUrl(book) != "" {
+	linkReader := entry.CreateElement("link")
+	linkReader.CreateAttr("rel", "related")
+	linkReader.CreateAttr("type", "text/html")
+	linkReader.CreateAttr("href", book.ReaderURL())
+
+	if book.CoverDownloadURL() != "" {
 		linkCover := entry.CreateElement("link")
 		linkCover.CreateAttr("rel", "http://opds-spec.org/image")
 		if book.CoverType == "image/jpeg" {
@@ -470,458 +558,25 @@ func fullEntryOpds(book *Book, feed *etree.Element) {
 		} else if book.CoverType == "image/png" {
 			linkCover.CreateAttr("type", "image/png")
 		}
-		linkCover.CreateAttr("href", coverDownloadUrl(book))
-	}
-	/*
-	  <dc:issued>1917</dc:issued>
-	  <category scheme="http://www.bisg.org/standards/bisac_subject/index.html"
-	            term="FIC020000"
-	            label="FICTION / Men's Adventure"/>
-	  <summary type="text">The story of the son of the Bob and the gallant part he played in
-	    the lives of a man and a woman.</summary>
-	  <link rel="http://opds-spec.org/image"
-	        href="/covers/4561.lrg.png"
-	        type="image/png"/>
-	  <link rel="http://opds-spec.org/image/thumbnail"
-	        href="/covers/4561.thmb.gif"
-	        type="image/gif"/>
-
-	  <link rel="alternate"
-	        href="/opds-catalogs/entries/4571.complete.xml"
-	        type="application/atom+xml;type=entry;profile=opds-catalog"
-	        title="Complete Catalog Entry for Bob, Son of Bob"/>
-
-	  <link rel="http://opds-spec.org/acquisition"
-	        href="/content/free/4561.epub"
-	        type="application/epub+zip"/>*/
-
-}
-
-func syncOpds(db gorm.DB) {
-	var services []Service
-	var nextUrl string
-	var req *http.Request
-	var reqUrl string
-
-	db.Find(&services)
-	// TODO: check last sync
-	for {
-		for _, service := range services {
-			nextUrl = "first"
-			reqUrl = ""
-
-			for nextUrl != "" {
-				client := &http.Client{}
-
-				if nextUrl == "first" {
-					reqUrl = service.Url
-				} else {
-					reqUrl = checkLink(nextUrl, service.Url)
-				}
-
-				fmt.Println("parsing " + reqUrl)
-				req, _ = http.NewRequest("GET", reqUrl, nil)
-
-				if service.Type == "basic_auth" {
-					req.SetBasicAuth(service.Login, service.Password)
-				}
-
-				resp, err := client.Do(req)
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
-
-				body, _ := ioutil.ReadAll(resp.Body)
-				fmt.Println(string(body))
-				doc := etree.NewDocument()
-				err = doc.ReadFromBytes(body)
-				if err == nil {
-					root := doc.SelectElement("feed")
-					if root != nil {
-						nextUrl = parseFeed(root, db, &service)
-					}
-				}
-			}
-		}
-		time.Sleep(24 * time.Hour)
+		linkCover.CreateAttr("href", book.CoverDownloadURL())
 	}
 
-	fmt.Println("finish sync")
-}
-
-func parseFeed(feed *etree.Element, db gorm.DB, service *Service) string {
-	var nextUrl string = ""
-
-	links := feed.SelectElements("link")
-	for _, link := range links {
-		rel := link.SelectAttrValue("rel", "")
-		//link_type := link.SelectAttrValue("type", "")
-		href := link.SelectAttrValue("href", "")
-		if rel == "next" {
-			nextUrl = href
-		}
+	for _, author := range book.Authors {
+		linkAuthor := entry.CreateElement("link")
+		linkAuthor.CreateAttr("rel", "http://www.feedbooks.com/opds/same_author")
+		linkAuthor.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		linkAuthor.CreateAttr("href", baseURL+"/index.atom?author_id="+strconv.Itoa(int(author.ID)))
+		linkAuthor.CreateAttr("title", author.Name)
 	}
 
-	for _, opds_book := range feed.SelectElements("entry") {
-		book := Book{}
-		Identifier := opds_book.SelectElement("id")
-
-		db.Where(Book{OpdsIdentifier: Identifier.Text()}).FirstOrCreate(&book)
-		getBookInfo(db, &book, opds_book, service.Url)
+	for _, tag := range book.Tags {
+		linkTag := entry.CreateElement("link")
+		linkTag.CreateAttr("rel", "related")
+		linkTag.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		linkTag.CreateAttr("href", baseURL+"/index.atom?tag="+escape(tag.Name))
+		linkTag.CreateAttr("title", tag.Name)
 	}
 
-	return nextUrl
-}
-
-func getBookInfo(db gorm.DB, book *Book, opds_book *etree.Element, baseUri string) {
-	var fullEntry string
-	var epubUrl string
-	var coverUrl string
-	var coverType string
-	var authorDb Author
-	var bookAuthor BookAuthor
-	var tag Tag
-	var bookTag BookTag
-
-	links := opds_book.SelectElements("link")
-	for _, link := range links {
-		rel := link.SelectAttrValue("rel", "")
-		format_type := link.SelectAttrValue("type", "")
-		if rel == "alternate" && format_type == "application/atom+xml;type=entry;profile=opds-catalog" {
-			fullEntry = link.SelectAttrValue("href", "")
-		}
-		if rel == "http://opds-spec.org/acquisition" && format_type == "application/epub+zip" {
-			epubUrl = link.SelectAttrValue("href", "")
-		}
-		if rel == "http://opds-spec.org/image" {
-			coverUrl = link.SelectAttrValue("href", "")
-			coverType = format_type
-		}
-	}
-
-	title := opds_book.SelectElement("title")
-	book.Title = title.Text()
-
-	lang := opds_book.SelectElement("language")
-	if lang != nil {
-		book.Language = lang.Text()
-	}
-
-	book.ServiceDownloadUrl = epubUrl
-
-	db.Save(book)
-
-	if fullEntry != "" {
-		parseFullEntry(db, book, opds_book, fullEntry, baseUri)
-		//fmt.Printf("%+v\n", book)
-		db.Save(book)
-	} else {
-		desc := opds_book.SelectElement("summary")
-		if desc != nil {
-			book.Description = html.UnescapeString(desc.Text())
-		}
-
-		if coverUrl != "" {
-			book.CoverType = coverType
-			book.CoverPath = downloadCover(checkLink(coverUrl, baseUri), coverType, book)
-		}
-		db.Save(book)
-	}
-
-	authors := opds_book.SelectElements("author")
-	for _, author := range authors {
-		authorDb = Author{}
-		bookAuthor = BookAuthor{}
-		nameElem := author.SelectElement("name")
-		if nameElem != nil {
-			db.Where(Author{Name: nameElem.Text()}).FirstOrCreate(&authorDb)
-		}
-		db.Where(BookAuthor{BookID: book.ID, AuthorID: authorDb.ID}).FirstOrCreate(&bookAuthor)
-		bookAuthor.BookID = book.ID
-		bookAuthor.AuthorID = authorDb.ID
-		db.Save(&bookAuthor)
-	}
-
-	categories := opds_book.SelectElements("category")
-	for _, category := range categories {
-		tag = Tag{}
-		tagLabel := category.SelectAttr("label")
-		tagLabelStr := tagLabel.Value
-		db.Where(Tag{Name: tagLabelStr}).FirstOrCreate(&tag)
-		db.Where(BookTag{TagID: tag.ID, BookID: book.ID}).FirstOrCreate(&bookTag)
-		bookTag.BookID = book.ID
-		bookTag.TagID = tag.ID
-		db.Save(&bookTag)
-	}
-
-	if epubUrl != "" {
-		go downloadEpub(checkLink(epubUrl, baseUri), book)
-	}
-}
-
-func downloadEpub(url string, book *Book) {
-	fmt.Println("try to download " + url)
-
-	bookIdStr := strconv.Itoa(int(book.ID))
-	epubDirPath := "public/books/" + bookIdStr
-	epubFilePath := epubDirPath + "/" + bookIdStr + ".epub"
-
-	_, err := os.Open(epubFilePath)
-	if os.IsNotExist(err) {
-		client := &http.Client{}
-
-		req, _ := http.NewRequest("GET", url, nil)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		buff, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		os.MkdirAll(epubDirPath, os.ModePerm)
-		epubFile, err := os.Create(epubFilePath)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		defer epubFile.Close()
-		_, err = epubFile.Write(buff)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-}
-
-func downloadCover(url string, format string, book *Book) string {
-	fmt.Println("try to download " + url)
-
-	bookIdStr := strconv.Itoa(int(book.ID))
-	coverDirPath := "public/books/" + bookIdStr
-	coverFilePath := coverDirPath + "/" + bookIdStr
-	if format == "image/jpeg" {
-		coverFilePath = coverFilePath + ".jpg"
-	} else if format == "image/png" {
-		coverFilePath = coverFilePath + ".png"
-	} else {
-		fmt.Println("can't find ext for " + format)
-	}
-
-	_, err := os.Open(coverFilePath)
-	if os.IsNotExist(err) {
-		client := &http.Client{}
-
-		req, _ := http.NewRequest("GET", url, nil)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Println(err)
-			return ""
-		}
-
-		buff, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println(err)
-			return ""
-		}
-
-		os.MkdirAll(coverDirPath, os.ModePerm)
-		coverFile, err := os.Create(coverFilePath)
-		if err != nil {
-			fmt.Println(err)
-			return ""
-		}
-
-		defer coverFile.Close()
-		_, err = coverFile.Write(buff)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-	return coverFilePath
-}
-
-func checkLink(uri string, baseUri string) string {
-
-	parsedBaseUri, _ := url.Parse(baseUri)
-	parsedUri, _ := url.Parse(uri)
-	if parsedUri.IsAbs() {
-		return uri
-	} else {
-		resultUri := parsedBaseUri.Scheme + "://" + parsedBaseUri.Host + uri
-		return resultUri
-	}
-}
-
-func bookDownloadUrl(book *Book) string {
-	bookIdStr := strconv.Itoa(int(book.ID))
-	epubDirPath := "/books/" + bookIdStr
-	epubFilePath := epubDirPath + "/" + bookIdStr + ".epub"
-	return epubFilePath
-}
-
-func coverDownloadUrl(book *Book) string {
-	var coverFilePath string
-
-	bookIdStr := strconv.Itoa(int(book.ID))
-	coverDirPath := "/books/" + bookIdStr
-	if book.CoverType == "image/jpeg" {
-		coverFilePath = coverDirPath + "/" + bookIdStr + ".jpg"
-	} else if book.CoverType == "image/png" {
-		coverFilePath = coverDirPath + "/" + bookIdStr + ".png"
-	}
-	return coverFilePath
-}
-
-func parseFullEntry(db gorm.DB, book *Book, opds_book *etree.Element, fullEntry string, baseUri string) {
-	var coverUrl string
-	var coverType string
-
-	client := &http.Client{}
-
-	finalUrl := checkLink(fullEntry, baseUri)
-	fmt.Println("parsing " + finalUrl)
-	req, _ := http.NewRequest("GET", finalUrl, nil)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	body, _ := ioutil.ReadAll(resp.Body)
-	//fmt.Println(string(body))
-	doc := etree.NewDocument()
-	err = doc.ReadFromBytes(body)
-	if err == nil {
-		root := doc.SelectElement("entry")
-		if root != nil {
-			content := root.SelectElement("content")
-			if content != nil {
-				book.Description = content.Text()
-			}
-			links := root.SelectElements("link")
-			for _, link := range links {
-				rel := link.SelectAttrValue("rel", "")
-				format_type := link.SelectAttrValue("type", "")
-				if rel == "http://opds-spec.org/image" {
-					coverUrl = link.SelectAttrValue("href", "")
-					coverType = format_type
-				}
-			}
-
-			if coverUrl != "" {
-				fmt.Println(coverUrl)
-				book.CoverType = coverType
-				book.CoverPath = downloadCover(checkLink(coverUrl, baseUri), coverType, book)
-			}
-		}
-	}
-}
-
-func watchUploadDirectory(dirPath string) {
-
-}
-
-func importFile(filePath string) {
-	var opfFileName string
-	var title string
-	var desciption string
-	var book Book
-	var authors []Author
-
-	zipReader, err := zip.OpenReader(filePath)
-	if err != nil {
-		fmt.Println("failed to open zip " + filePath)
-		fmt.Println(err)
-		return
-	}
-
-	for _, f := range zipReader.File {
-		if f.Name == "META-INF/container.xml" {
-			rc, err := f.Open()
-			if err != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			doc := etree.NewDocument()
-			_, err = doc.ReadFrom(rc)
-			if err == nil {
-				root := doc.SelectElement("container")
-				rootFiles := root.SelectElements("rootfiles")
-				for _, rootFileTag := range rootFiles {
-					rootFile := rootFileTag.SelectElement("rootfile")
-					if rootFile != nil {
-						opfFileName = rootFile.SelectAttrValue("full-path", "")
-					}
-				}
-			} else {
-				fmt.Println(err)
-			}
-			rc.Close()
-		}
-	}
-
-	if opfFileName != "" {
-		for _, f := range zipReader.File {
-			if f.Name == opfFileName {
-				rc, err := f.Open()
-				if err != nil {
-					fmt.Println("error openging " + f.Name)
-				}
-				doc := etree.NewDocument()
-				_, err = doc.ReadFrom(rc)
-				if err == nil {
-					root := doc.SelectElement("package")
-					meta := root.SelectElement("metadata")
-					title_elem := meta.SelectElement("title")
-					title = title_elem.Text()
-					description_elem := meta.SelectElement("desciption")
-					desciption = description_elem.Text()
-					creators := meta.SelectElements("creator")
-					if creators != nil {
-						authors = make([]Author, len(creators), len(creators))
-						for i, creator := range creators {
-							db.Where("name = ? ", creator.Text()).Find(&authors[i])
-							if authors[i].ID == 0 {
-								authors[i].Name = creator.Text()
-								db.Save(&authors[i])
-							}
-						}
-					}
-
-					book.Title = title
-					book.Description = desciption
-					book.Authors = authors
-					db.Save(&book)
-
-				} else {
-					fmt.Println(err)
-				}
-			}
-		}
-	}
-	moveEpub("test.epub", &book)
-}
-
-func moveEpub(filepath string, book *Book) {
-
-	bookIdStr := strconv.Itoa(int(book.ID))
-	epubDirPath := "public/books/" + bookIdStr
-	epubFilePath := epubDirPath + "/" + bookIdStr + ".epub"
-
-	_, err := os.Open(epubFilePath)
-	if os.IsNotExist(err) {
-
-		os.MkdirAll(epubDirPath, os.ModePerm)
-		os.Rename(filepath, epubFilePath)
-	}
 }
 
 func opensearchHandler(res http.ResponseWriter, req *http.Request) {
@@ -947,9 +602,9 @@ func opensearchHandler(res http.ResponseWriter, req *http.Request) {
 	outputEncoding := opensearch.CreateElement("OutputEncoding")
 	outputEncoding.SetText("UTF-8")
 
-	// htmlUrl := opensearch.CreateElement("Url")
-	// htmlUrl.CreateAttr("type", "text/html")
-	// htmlUrl.CreateAttr("template", "http://www.feedbooks.com/search?query={searchTerms}")
+	htmlURL := opensearch.CreateElement("Url")
+	htmlURL.CreateAttr("type", "text/html")
+	htmlURL.CreateAttr("template", RootURL(req)+"/search.html?query={searchTerms}")
 
 	atomURL := opensearch.CreateElement("Url")
 	atomURL.CreateAttr("type", "application/atom+xml")
@@ -969,24 +624,39 @@ func opensearchHandler(res http.ResponseWriter, req *http.Request) {
 
 func searchHandler(res http.ResponseWriter, req *http.Request) {
 	var xmlString string
-
-	res.Header().Set("Content-Type", "application/atom+xml; charset=utf-8")
-
-	baseDoc := etree.NewDocument()
-	baseDoc.Indent(2)
+	var bookTemplate *template.Template
 
 	search := req.URL.Query().Get("query")
 	books := findBookBySearch(search)
 
-	feed := base_opds(baseDoc, RootURL(req)+"/search.atom", search, len(books), len(books), 0, "", "")
+	vars := mux.Vars(req)
 
-	for _, book := range books {
-		entry_opds(&book, feed)
+	if vars["format"] == "atom" {
+		res.Header().Set("Content-Type", "application/atom+xml; charset=utf-8")
+
+		baseDoc := etree.NewDocument()
+		baseDoc.Indent(2)
+
+		feed := baseOpds(baseDoc, RootURL(req)+"/search.atom", search, len(books), len(books), 0, "", "")
+
+		for _, book := range books {
+			entryOpds(&book, feed)
+		}
+
+		xmlString, _ = baseDoc.WriteToString()
+
+		fmt.Fprintf(res, xmlString)
+	} else {
+		bookTemplate = template.Must(layout.Clone())
+		bookTemplate = template.Must(bookTemplate.ParseFiles("template/bookcover.html"))
+		err := bookTemplate.Execute(res, Page{
+			Content: books,
+			//			FilterBlock: true,
+		})
+		if err != nil {
+			panic(err)
+		}
 	}
-
-	xmlString, _ = baseDoc.WriteToString()
-
-	fmt.Fprintf(res, xmlString)
 
 }
 
@@ -1001,4 +671,452 @@ func findBookBySearch(search string) []Book {
 // RootURL return url with absolute path
 func RootURL(req *http.Request) string {
 	return "http://" + req.Host
+}
+
+func changeTagHandler(res http.ResponseWriter, req *http.Request) {
+
+	action := req.URL.Query().Get("action")
+	tag := req.URL.Query().Get("tag")
+	bookID := req.URL.Query().Get("id")
+
+	fmt.Println(action)
+	fmt.Println(tag)
+	fmt.Println(bookID)
+
+}
+
+func uploadBookForm(res http.ResponseWriter, req *http.Request) {
+}
+
+func deleteBookHandler(res http.ResponseWriter, req *http.Request) {
+	var book Book
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	if book.ID != 0 {
+		db.Delete(&book)
+	}
+	http.Redirect(res, req, "/index.html", http.StatusTemporaryRedirect)
+}
+
+func editBookHandler(res http.ResponseWriter, req *http.Request) {
+	var book Book
+	var bookTemplate *template.Template
+	var tagsObjs []Tag
+	var tagObj Tag
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	if req.Method == http.MethodPost {
+		book.Title = req.FormValue("title")
+		book.Description = req.FormValue("description")
+		db.Unscoped().Where("book_id = ?", book.ID).Delete(BookTag{})
+		tags := strings.Split(req.FormValue("tags"), ",")
+		for _, tag := range tags {
+			tagObj = Tag{}
+			db.FirstOrCreate(&tagObj, Tag{Name: tag})
+			tagsObjs = append(tagsObjs, tagObj)
+		}
+		book.Tags = tagsObjs
+		fmt.Println(book.Tags)
+		fmt.Println(req.PostForm)
+		db.Save(&book)
+		http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
+	} else {
+		bookTemplate = template.Must(layout.Clone())
+		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book_edit.html"))
+		bookTemplate.Execute(res, Page{
+			Content: book,
+		})
+	}
+
+}
+
+func newBookHandler(res http.ResponseWriter, req *http.Request) {
+	var bookTemplate *template.Template
+
+	if req.Method == http.MethodPost {
+		infile, header, err := req.FormFile("book")
+		if err != nil {
+			http.Error(res, "Error parsing uploaded file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		outfile, err := os.Create("/tmp/" + header.Filename)
+		if err != nil {
+			http.Error(res, "Error saving file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		_, err = io.Copy(outfile, infile)
+		if err != nil {
+			http.Error(res, "Error saving file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		outfile.Close()
+
+		book := importFile("/tmp/" + header.Filename)
+
+		idStr := strconv.Itoa(int(book.ID))
+		res.Header().Set("Location", "/books/"+idStr+".html")
+		res.WriteHeader(302)
+	} else {
+		bookTemplate = template.Must(layout.Clone())
+		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book_new.html"))
+		bookTemplate.Execute(res, Page{})
+	}
+
+}
+
+func importFile(filePath string) Book {
+	var book Book
+
+	book.Edited = false
+	db.Save(&book)
+
+	fmt.Println(filePath)
+	moveEpub(filePath, &book)
+	book.getMetada()
+	return book
+}
+
+func moveEpub(filepath string, book *Book) {
+
+	bookIDStr := strconv.Itoa(int(book.ID))
+	epubDirPath := "public/books/" + bookIDStr
+	epubFilePath := epubDirPath + "/" + bookIDStr + ".epub"
+
+	_, err := os.Open(epubFilePath)
+	if os.IsNotExist(err) {
+
+		os.MkdirAll(epubDirPath, os.ModePerm)
+		infile, err := os.Open(filepath)
+		if err != nil {
+			return
+		}
+		outfile, err := os.Create(epubFilePath)
+		if err != nil {
+			// http.Error(res, "Error saving file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		_, err = io.Copy(outfile, infile)
+		if err != nil {
+			// http.Error(res, "Error saving file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		outfile.Close()
+
+	}
+}
+
+func getManifest(w http.ResponseWriter, req *http.Request) {
+	var opfFileName string
+	var manifestStruct Manifest
+	var metaStruct Metadata
+	var book Book
+
+	metaStruct.Modified = time.Now()
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	filenamePath := book.FilePath()
+
+	self := Link{
+		Rel:      "self",
+		Href:     "http://" + req.Host + "/books/" + vars["id"] + "/reader/manifest.json",
+		TypeLink: "application/json",
+	}
+	manifestStruct.Links = make([]Link, 1)
+	manifestStruct.Resources = make([]Link, 0)
+	manifestStruct.Resources = make([]Link, 0)
+	manifestStruct.Links[0] = self
+
+	zipReader, err := zip.OpenReader(filenamePath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for _, f := range zipReader.File {
+		if f.Name == "META-INF/container.xml" {
+			rc, errOpen := f.Open()
+			if errOpen != nil {
+				fmt.Println("error openging " + f.Name)
+			}
+			doc := etree.NewDocument()
+			_, err = doc.ReadFrom(rc)
+			if err == nil {
+				root := doc.SelectElement("container")
+				rootFiles := root.SelectElements("rootfiles")
+				for _, rootFileTag := range rootFiles {
+					rootFile := rootFileTag.SelectElement("rootfile")
+					if rootFile != nil {
+						opfFileName = rootFile.SelectAttrValue("full-path", "")
+					}
+				}
+			} else {
+				fmt.Println(err)
+			}
+			rc.Close()
+		}
+	}
+
+	if opfFileName != "" {
+		for _, f := range zipReader.File {
+			if f.Name == opfFileName {
+				rc, errOpen := f.Open()
+				if errOpen != nil {
+					fmt.Println("error openging " + f.Name)
+				}
+				doc := etree.NewDocument()
+				_, err = doc.ReadFrom(rc)
+				if err == nil {
+					root := doc.SelectElement("package")
+					meta := root.SelectElement("metadata")
+
+					titleTag := meta.SelectElement("title")
+					metaStruct.Title = titleTag.Text()
+
+					langTag := meta.SelectElement("language")
+					metaStruct.Language = langTag.Text()
+
+					identifierTag := meta.SelectElement("identifier")
+					metaStruct.Identifier = identifierTag.Text()
+
+					creatorTag := meta.SelectElement("creator")
+					metaStruct.Author = creatorTag.Text()
+
+					bookManifest := root.SelectElement("manifest")
+					itemsManifest := bookManifest.SelectElements("item")
+					for _, item := range itemsManifest {
+						linkItem := Link{}
+						linkItem.TypeLink = item.SelectAttrValue("media-type", "")
+						linkItem.Href = item.SelectAttrValue("href", "")
+						if linkItem.TypeLink == "application/xhtml+xml" {
+							manifestStruct.Spine = append(manifestStruct.Spine, linkItem)
+						} else {
+							manifestStruct.Resources = append(manifestStruct.Resources, linkItem)
+						}
+					}
+
+					manifestStruct.Metadata = metaStruct
+					j, _ := json.Marshal(manifestStruct)
+					w.Header().Set("Content-Type", "application/json")
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+					w.Write(j)
+					return
+				}
+			}
+		}
+	}
+
+}
+
+func getAsset(w http.ResponseWriter, req *http.Request) {
+	var opfFileName string
+	var book Book
+	var resourcePath string
+
+	vars := mux.Vars(req)
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	filename := book.FilePath()
+
+	assetname := vars["asset"]
+
+	zipReader, err := zip.OpenReader(filename)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for _, f := range zipReader.File {
+		if f.Name == "META-INF/container.xml" {
+			rc, errOpen := f.Open()
+			if errOpen != nil {
+				fmt.Println("error openging " + f.Name)
+			}
+			doc := etree.NewDocument()
+			_, err = doc.ReadFrom(rc)
+			if err == nil {
+				root := doc.SelectElement("container")
+				rootFiles := root.SelectElements("rootfiles")
+				for _, rootFileTag := range rootFiles {
+					rootFile := rootFileTag.SelectElement("rootfile")
+					if rootFile != nil {
+						opfFileName = rootFile.SelectAttrValue("full-path", "")
+					}
+				}
+			} else {
+				fmt.Println(err)
+			}
+			rc.Close()
+		}
+	}
+
+	if strings.Contains(opfFileName, "/") {
+		resourcePath = strings.Split(opfFileName, "/")[0]
+	}
+
+	for _, f := range zipReader.File {
+		checkName := assetname
+		if resourcePath != "" {
+			checkName = resourcePath + "/" + assetname
+		}
+		if f.Name == checkName {
+			rc, errOpen := f.Open()
+			if errOpen != nil {
+				fmt.Println("error openging " + f.Name)
+			}
+			buff, _ := ioutil.ReadAll(rc)
+			defer rc.Close()
+			extension := filepath.Ext(f.Name)
+			if extension == ".css" {
+				w.Header().Set("Content-Type", "text/css")
+			}
+			if extension == ".xml" {
+				w.Header().Set("Content-Type", "application/xhtml+xml")
+			}
+			if extension == ".js" {
+				w.Header().Set("Content-Type", "text/javascript")
+			}
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Write(buff)
+			return
+		}
+	}
+
+}
+
+func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
+	var opfFileName string
+	var webapp AppInstall
+	var book Book
+
+	vars := mux.Vars(req)
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	filename := book.FilePath()
+
+	webapp.Display = "standalone"
+	webapp.StartURL = "index.html"
+	webapp.Icons = Icon{
+		Size:      "144x144",
+		Src:       "/logo.png",
+		MediaType: "image/png",
+	}
+
+	zipReader, err := zip.OpenReader(filename)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for _, f := range zipReader.File {
+		if f.Name == "META-INF/container.xml" {
+			rc, errOpen := f.Open()
+			if errOpen != nil {
+				fmt.Println("error openging " + f.Name)
+			}
+			doc := etree.NewDocument()
+			_, err = doc.ReadFrom(rc)
+			if err == nil {
+				root := doc.SelectElement("container")
+				rootFiles := root.SelectElements("rootfiles")
+				for _, rootFileTag := range rootFiles {
+					rootFile := rootFileTag.SelectElement("rootfile")
+					if rootFile != nil {
+						opfFileName = rootFile.SelectAttrValue("full-path", "")
+					}
+				}
+			} else {
+				fmt.Println(err)
+			}
+			rc.Close()
+		}
+	}
+
+	if opfFileName != "" {
+		for _, f := range zipReader.File {
+			if f.Name == opfFileName {
+				rc, errOpen := f.Open()
+				if errOpen != nil {
+					fmt.Println("error openging " + f.Name)
+				}
+				doc := etree.NewDocument()
+				_, err = doc.ReadFrom(rc)
+				if err == nil {
+					root := doc.SelectElement("package")
+					meta := root.SelectElement("metadata")
+
+					titleTag := meta.SelectElement("title")
+					webapp.Name = titleTag.Text()
+					webapp.ShortName = titleTag.Text()
+
+					j, _ := json.Marshal(webapp)
+					w.Header().Set("Content-Type", "application/json")
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+					w.Write(j)
+					return
+				}
+			}
+		}
+	}
+
+}
+
+func bookIndex(w http.ResponseWriter, req *http.Request) {
+	var err error
+	var book Book
+
+	vars := mux.Vars(req)
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	filename := book.FilePath()
+
+	t, err := template.ParseFiles("template/viewer_index.html") // Parse template file.
+	if err != nil {
+		fmt.Println(err)
+	}
+	t.Execute(w, filename) // merge.
+}
+
+func viewer(w http.ResponseWriter, req *http.Request) {
+
+	f, _ := os.OpenFile("public/viewer.js", os.O_RDONLY, 666)
+	buff, _ := ioutil.ReadAll(f)
+
+	w.Header().Set("Content-Type", "text/javascript")
+	w.Write(buff)
+}
+
+func sw(w http.ResponseWriter, req *http.Request) {
+
+	f, _ := os.OpenFile("public/sw.js", os.O_RDONLY, 666)
+	buff, _ := ioutil.ReadAll(f)
+
+	w.Header().Set("Content-Type", "text/javascript")
+	w.Write(buff)
+}
+
+func escape(s string) string {
+	return strings.Replace(url.QueryEscape(s), "+", "%20", -1)
 }

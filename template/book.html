@@ -1,22 +1,27 @@
 {{define "content"}}
   <div class="col-md-4">
     <div class="cover" data-id="" data-original-title="" title="">
-      <img src="/books/{{ .ID }}/{{ .ID }}.jpg">
+      <img src="{{ .CoverDownloadURL }}" class="img-responsive">
     </div>
   </div>
   <div class="col-md-8">
     <p class="titre">{{ .Title }}</p>
     {{ range .Authors }}
-      <p class="auteur">{{ .Name }}</p>
+      <p class="auteur"><a href="/index.html?author={{ .Name }}">{{ .Name }}</a></p>
     {{ end }}
-    {{ range .Tags }}
-      <p><a href="/index.html?tag={{ .Name }}"><span class="label label-success">{{ .Name }}</span></a></p>
-    {{ end }}
+
+    <p>
+      {{ range .Tags }}
+        <a href="/index.html?tag={{ .Name }}"><span class="label label-success">{{ .Name }}</span></a>
+      {{ end }}
+    </p>
     <p class="resume">{{ .Description }}</p>
     <p>
        <a href="/books/{{ .ID }}/{{ .ID }}.epub" class="btn btn-success">Télécharger</a>
-       <a href="#" class="btn btn-success">Ajouter aux favoris</a>
-       <a href="#" class="btn btn-warning">Editer la fiche</a>
+       <a href="/books/{{ .ID }}/reader/" class="btn btn-success">Lire</a>
+       <a href="/books/{{ .ID }}/edit" class="btn btn-warning">Editer la fiche</a>
+       <a href="/books/{{ .ID }}/delete" class="btn btn-danger">Supprimer</a>
+       <!-- <a href="#" class="btn btn-success">Ajouter aux favoris</a> -->
     </p>
   </div>
 {{ end }}

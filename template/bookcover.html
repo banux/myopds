@@ -2,7 +2,7 @@
   {{range .}}
     <div class="book-block">
       <div class="thumbnail" data-id="{{ .ID }}" data-original-title="" title="">
-        <a href="/books/{{ .ID }}.html" ><img src="/books/{{ .ID }}/{{ .ID }}.jpg" /></a>
+        <a href="/books/{{ .ID }}.html" ><img src="{{ .CoverDownloadURL }}" /></a>
       </div>
     </div> <!-- book blok -->
   {{end}}
