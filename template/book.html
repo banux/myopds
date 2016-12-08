@@ -9,6 +9,7 @@
     {{ range .Authors }}
       <p class="auteur"><a href="/index.html?author={{ .Name }}">{{ .Name }}</a></p>
     {{ end }}
+    <p>{{ .Isbn }}</p>
 
     <p>
       {{ range .Tags }}

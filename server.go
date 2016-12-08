@@ -718,6 +718,7 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
 		book.Title = req.FormValue("title")
 		book.Description = req.FormValue("description")
+		book.Isbn = req.FormValue("isbn")
 		db.Unscoped().Where("book_id = ?", book.ID).Delete(BookTag{})
 		tags := strings.Split(req.FormValue("tags"), ",")
 		for _, tag := range tags {
