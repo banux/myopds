@@ -8,6 +8,22 @@
       <label for="isbn">ISBN</label>
       <input type="text" class="form-control" id="isbn" name="isbn" placeholder="ISBN" value="{{ .Isbn }}">
     </div>
+    <div class="form-group">
+      <label for="serie">Serie</label>
+      <input type="text" class="form-control" id="serie" name="serie" placeholder="Serie" value="{{ .Serie }}">
+    </div>
+    <div class="form-group">
+      <label for="serie_number">Serie number</label>
+      <input type="text" class="form-control" id="serie_number" name="serie_number" placeholder="1" value="{{ .SerieNumber }}">
+    </div>
+    <div class="form-group">
+      <label for="publisher">Editeur</label>
+      <input type="text" class="form-control" id="publisher" name="publisher" placeholder="Editeur" value="{{ .Publisher }}">
+    </div>
+    <div class="form-group">
+      <label for="collection">Collection</label>
+      <input type="text" class="form-control" id="collection" name="collection" placeholder="Collection" value="{{ .Collection }}">
+    </div>
     <!-- <div class="form-group">
       <label for="exampleInputFile">File input</label>
       <input type="file" id="exampleInputFile">
@@ -19,7 +35,7 @@
     </div>
     <div class="form-group">
       <label for="description">Description</label>
-      <textarea class="form-control" rows="3" name="description" >{{ .Description }}</textarea>
+      <textarea class="form-control" rows="10" name="description" >{{ .Description }}</textarea>
     </div>
     <button type="submit" class="btn btn-default">Submit</button>
   </form>

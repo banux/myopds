@@ -5,11 +5,15 @@
     </div>
   </div>
   <div class="col-md-8">
-    <p class="titre">{{ .Title }}</p>
+    <h1 class="titre">{{ .Title }}</h1>
+    {{ if .Serie }}
+      <h2>{{ .Serie }} - {{ .SerieNumber }}</h2>
+    {{ end }}
     {{ range .Authors }}
       <p class="auteur"><a href="/index.html?author={{ .Name }}">{{ .Name }}</a></p>
     {{ end }}
     <p>{{ .Isbn }}</p>
+
 
     <p>
       {{ range .Tags }}
@@ -18,7 +22,7 @@
     </p>
     <p class="resume">{{ .Description }}</p>
     <p>
-       <a href="/books/{{ .ID }}/{{ .ID }}.epub" class="btn btn-success">Télécharger</a>
+       <a href="/books/{{ .ID }}/download" class="btn btn-success">Télécharger</a>
        <a href="/books/{{ .ID }}/reader/" class="btn btn-success">Lire</a>
        <a href="/books/{{ .ID }}/edit" class="btn btn-warning">Editer la fiche</a>
        <a href="/books/{{ .ID }}/delete" class="btn btn-danger">Supprimer</a>

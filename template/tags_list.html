@@ -1,0 +1,24 @@
+{{define "content"}}
+  <table class="table table-striped">
+    <thead>
+        <tr>
+          <th>Nom</th>
+        </tr>
+        <tr>
+          <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+      {{ range . }}
+      <tr>
+        <td>
+          <a href="{{ .ToURL }}">{{ .Name }}</a>
+        </td>
+        <td>
+          <a href="/tags/{{ .ID }}/delete">Supprimer</a>
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+{{end}}

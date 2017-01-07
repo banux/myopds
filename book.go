@@ -1,15 +1,16 @@
 package main
 
 import (
-	"archive/zip"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/beevik/etree"
+	"github.com/feedbooks/webpub-streamer/fetcher"
+	"github.com/feedbooks/webpub-streamer/parser"
 	"github.com/jinzhu/gorm"
 )
 
@@ -22,7 +23,8 @@ type Author struct {
 // Tag store tag information
 type Tag struct {
 	gorm.Model
-	Name string
+	Name      string
+	DeletedAt time.Time
 }
 
 // BookTag store link beetween book and tag
@@ -47,203 +49,75 @@ type Book struct {
 	Description        string
 	Language           string
 	Publisher          string
+	Collection         string
 	Edited             bool
 	OpdsIdentifier     string
 	ServiceDownloadURL string
 	CoverPath          string
 	CoverType          string
+	Serie              string
+	SerieNumber        float32
 	Authors            []Author `gorm:"many2many:book_authors;"`
 	Tags               []Tag    `gorm:"many2many:book_tags;"`
 }
 
 func (book *Book) getMetada() {
-	var opfFileName string
-	var title string
-	var description string
-	var identifier string
-	var coverFilename string
-	var coverID string
-	var coverType string
-	var buff []byte
 	var authors []Author
-	var resourcePath = ""
-	var tag Tag
+	var tags []Tag
 
 	bookIDStr := strconv.Itoa(int(book.ID))
 	fmt.Println("get Meta for Book " + bookIDStr)
 	filePath := book.FilePath()
 
-	zipReader, err := zip.OpenReader(filePath)
-	if err != nil {
-		fmt.Println("failed to open zip " + filePath)
-		fmt.Println(err)
-		return
-	}
+	publication, _ := parser.Parse(filePath, "")
 
-	for _, f := range zipReader.File {
-		if f.Name == "META-INF/container.xml" {
-			rc, err := f.Open()
-			if err != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			doc := etree.NewDocument()
-			_, err = doc.ReadFrom(rc)
-			if err == nil {
-				root := doc.SelectElement("container")
-				rootFiles := root.SelectElements("rootfiles")
-				for _, rootFileTag := range rootFiles {
-					rootFile := rootFileTag.SelectElement("rootfile")
-					if rootFile != nil {
-						opfFileName = rootFile.SelectAttrValue("full-path", "")
-					}
-				}
-			} else {
-				fmt.Println(err)
-			}
-			rc.Close()
+	authors = make([]Author, len(publication.Metadata.Author), len(publication.Metadata.Author))
+	for i, creator := range publication.Metadata.Author {
+		db.Where("name = ? ", creator.Name).Find(&authors[i])
+		if authors[i].ID == 0 {
+			authors[i].Name = creator.Name
+			db.Save(&authors[i])
 		}
 	}
 
-	if strings.Contains(opfFileName, "/") {
-		resourcePath = strings.Split(opfFileName, "/")[0]
-	}
-
-	if opfFileName != "" {
-		for _, f := range zipReader.File {
-			if f.Name == opfFileName {
-				rc, err := f.Open()
-				if err != nil {
-					fmt.Println("error openging " + f.Name)
-				}
-				doc := etree.NewDocument()
-				_, err = doc.ReadFrom(rc)
-				if err == nil {
-					root := doc.SelectElement("package")
-					meta := root.SelectElement("metadata")
-					titleElem := meta.SelectElement("title")
-					title = titleElem.Text()
-					identifierElem := meta.SelectElement("identifier")
-					if identifierElem.SelectAttrValue("scheme", "") == "ISBN" {
-						identifier = identifierElem.Text()
-					}
-					if identifierElem.SelectAttrValue("scheme", "") == "ean" {
-						identifier = identifierElem.Text()
-					}
-					descriptionElem := meta.SelectElement("description")
-					if descriptionElem != nil {
-						description = descriptionElem.Text()
-					} else {
-						description = ""
-					}
-					creators := meta.SelectElements("creator")
-					if creators != nil {
-						authors = make([]Author, len(creators), len(creators))
-						for i, creator := range creators {
-							db.Where("name = ? ", creator.Text()).Find(&authors[i])
-							if authors[i].ID == 0 {
-								authors[i].Name = creator.Text()
-								db.Save(&authors[i])
-							}
-						}
-					}
-
-					tagElem := meta.SelectElement("subject")
-					if tagElem != nil {
-						fmt.Println("find tag " + tagElem.Text())
-						db.Where("name = ?", tagElem.Text()).First(&tag)
-						if tag.ID == 0 {
-							tag.Name = tagElem.Text()
-							db.Save(&tag)
-						}
-					}
-
-					metaElems := meta.SelectElements("meta")
-					for _, metaElem := range metaElems {
-						fmt.Println(metaElem)
-						if metaElem != nil {
-							if metaElem.SelectAttrValue("name", "") == "cover" {
-								coverID = metaElem.SelectAttrValue("content", "")
-							}
-						}
-					}
-					manifestElem := root.SelectElement("manifest")
-					items := manifestElem.SelectElements("item")
-					for _, i := range items {
-						if i.SelectAttrValue("id", "") == coverID {
-							coverFilename = i.SelectAttrValue("href", "")
-							coverType = i.SelectAttrValue("media-type", "")
-						}
-					}
-
-					book.Title = title
-					book.Description = description
-					book.Authors = authors
-					book.Isbn = identifier
-					if tag.ID != 0 {
-						book.Tags = []Tag{tag}
-					}
-					db.Save(&book)
-
-				} else {
-					fmt.Println(err)
-				}
-			}
+	book.Title = publication.Metadata.Title
+	book.Description = publication.Metadata.Description
+	book.Authors = authors
+	book.Isbn = publication.Metadata.Identifier
+	for _, sub := range publication.Metadata.Subject {
+		tag := Tag{}
+		db.Where("name = ?", sub.Name).First(&tag)
+		if tag.ID == 0 {
+			tag.Name = sub.Name
+			db.Save(&tag)
 		}
+		tags = append(tags, tag)
 	}
+	book.Tags = tags
 
-	fmt.Println(coverFilename)
-	if coverFilename != "" && (filepath.Ext(coverFilename) == ".jpeg" || filepath.Ext(coverFilename) == ".jpg" || filepath.Ext(coverFilename) == ".png") {
-		fmt.Println("create cover")
-		bookIDStr := strconv.Itoa(int(book.ID))
-		coverDirPath := "public/books/" + bookIDStr
-		coverFilePath := coverDirPath + "/" + bookIDStr
-		if coverType == "image/jpeg" {
-			coverFilePath = coverFilePath + ".jpg"
-		} else if coverType == "image/png" {
-			coverFilePath = coverFilePath + ".png"
-		} else {
-			fmt.Println("can't find ext for " + coverType)
+	db.Save(&book)
+
+	linkCover, _ := publication.GetCover()
+	coverDirPath := "public/books/" + bookIDStr
+	coverFilePath := coverDirPath + "/" + bookIDStr + filepath.Ext(linkCover.Href)
+	_, err := os.Open(coverFilePath)
+	if os.IsNotExist(err) {
+
+		os.MkdirAll(coverDirPath, os.ModePerm)
+		coverFile, err := os.Create(coverFilePath)
+		if err != nil {
+			fmt.Println(err)
 		}
-
-		_, err := os.Open(coverFilePath)
-		if os.IsNotExist(err) {
-
-			for _, f := range zipReader.File {
-				//fmt.Println(f.Name)
-				checkName := coverFilename
-				if resourcePath != "" {
-					checkName = resourcePath + "/" + coverFilename
-				}
-				if f.Name == checkName {
-					fmt.Println("open : " + checkName)
-					rc, err := f.Open()
-
-					buff, err = ioutil.ReadAll(rc)
-					if err != nil {
-						fmt.Println(err)
-					}
-				}
-			}
-
-			os.MkdirAll(coverDirPath, os.ModePerm)
-			coverFile, err := os.Create(coverFilePath)
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			defer coverFile.Close()
-			_, err = coverFile.Write(buff)
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-		book.CoverType = coverType
-		book.CoverPath = coverFilePath
-		db.Save(&book)
+		coverReader, _, _ := fetcher.Fetch(publication, linkCover.Href)
+		io.Copy(coverFile, coverReader)
+		defer coverFile.Close()
 	}
-
+	book.CoverType = linkCover.TypeLink
+	book.CoverPath = coverFilePath
+	db.Save(&book)
 }
 
+// DownloadURL get url of the book
 func (book *Book) DownloadURL() string {
 	bookIDStr := strconv.Itoa(int(book.ID))
 	epubDirPath := "/books/" + bookIDStr
@@ -251,12 +125,14 @@ func (book *Book) DownloadURL() string {
 	return epubFilePath
 }
 
+// ReaderURL return the reader base url
 func (book *Book) ReaderURL() string {
 	bookIDStr := strconv.Itoa(int(book.ID))
 	readerPath := "/books/" + bookIDStr + "/reader/"
 	return readerPath
 }
 
+// FilePath get filepath for the book on os
 func (book *Book) FilePath() string {
 	bookIDStr := strconv.Itoa(int(book.ID))
 	epubDirPath := "public/books/" + bookIDStr
@@ -264,6 +140,7 @@ func (book *Book) FilePath() string {
 	return epubFilePath
 }
 
+// CoverDownloadURL get url for book cover
 func (book Book) CoverDownloadURL() string {
 	var coverFilePath string
 
@@ -289,4 +166,17 @@ func (book Book) TagFormData() string {
 	}
 
 	return strings.Join(tagsString, ",")
+}
+
+// ToURL return tag URL
+func (tag *Tag) ToURL() string {
+	return "/index.html?tag=" + strings.Replace(tag.Name, " ", "+", -1)
+}
+
+// BeforeDelete callback to clean assoction before deleting tag
+func (tag *Tag) BeforeDelete() (err error) {
+	if tag.ID != 0 {
+		db.Delete(BookTag{}, "tag_id =? ", tag.ID)
+	}
+	return nil
 }

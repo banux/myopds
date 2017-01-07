@@ -43,16 +43,17 @@
                   <li><a target="_self" href="/books/new.html">Ajout d'un livre</a></li>
                   <li><a target="_self" href="/index.html">Auteur</a></li>
                   <li><a target="_self" href="/index.html">Favori</a></li>
-                  <li class="dropdown">
+                  <!-- <li class="dropdown">
                     <a class="dropdown-toggle" data-toggle="dropdown">Paramètre<span class="caret"></span></a>
-                    <ul class="dropdown-menu  nav-justified" role="menu">
-                      <li><a href="profil.html">Profil</a></li>
-                      <li class="divider"></li>
+                    <ul class="dropdown-menu  nav-justified" role="menu"> -->
+                      <li><a href="/settings.html">Paramètre</a></li>
+                      <li><a href="/tags_list.html">Tags</a></li>
+                      <!--<li class="divider"></li>
                       <li><a href="add_cat.html">Add category</a></li>
                       <li class="divider"></li>
-                      <li><a href="bad_data.html">Bad Metadata Book</a></li>
-                    </ul>
-                  </li>
+                      <li><a href="bad_data.html">Bad Metadata Book</a></li> -->
+                    <!--</ul>
+                  </li>-->
                 </ul>
               </div><!--/.nav-collapse -->
             </div><!-- container -->
@@ -123,12 +124,21 @@
       <div class="row">
         <div class="col-md-12">
           {{template "content" .Content}}
-          {{ if ne .PrevPage "" }}
-            <a href="{{ .PrevPage }}" class="btn btn-primary btn-lg">Prev</a>
-          {{ end }}
-          {{ if ne .NextPage "" }}
-            <a href="{{ .NextPage }}" class="btn btn-primary btn-lg">Next</a>
-          {{ end }}
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-12">
+          <p class="text-left col-md-6 col-xs-6">
+            {{ if ne .PrevPage "" }}
+              <a href="{{ .PrevPage }}" class="btn btn-primary btn-lg">Prev</a>
+            {{ end }}
+          </p>
+          <p class="text-right col-md-6 col-xs-6">
+            {{ if ne .NextPage "" }}
+              <a href="{{ .NextPage }}" class="btn btn-primary btn-lg">Next</a>
+            {{ end }}
+          </p>
         </div> <!-- col-md-12 -->
       </div>  <!-- row -->
     </div> <!-- container -->

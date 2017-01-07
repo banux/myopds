@@ -61,12 +61,11 @@ type Page struct {
 
 var db *gorm.DB
 var layout *template.Template
+var options ServerOption
 
 var importDir = kingpin.Flag("import", "Import directory path").Short('i').String()
 var serverMode = kingpin.Flag("server", "Server mode").Short('s').Bool()
 var metaMode = kingpin.Flag("meta", "Regen all metada").Short('m').Bool()
-
-type server struct{}
 
 //create another main() to run the overseer process
 //and then convert your old main() into a 'prog(state)'
@@ -94,6 +93,7 @@ func main() {
 		serverOption.NumberBookPerPage = 20
 	}
 	db.Save(&serverOption)
+	options = serverOption
 
 	kingpin.Version(version)
 	kingpin.Parse()
@@ -131,10 +131,14 @@ func main() {
 
 		routeur := mux.NewRouter()
 		routeur.HandleFunc("/index.{format}", rootHandler)
+		routeur.HandleFunc("/settings.html", settingsHandler)
 		routeur.HandleFunc("/books/new.html", newBookHandler)
 		routeur.HandleFunc("/books/{id}.{format}", bookHandler)
 		routeur.HandleFunc("/books/{id}/delete", deleteBookHandler)
 		routeur.HandleFunc("/books/{id}/edit", editBookHandler)
+		routeur.HandleFunc("/books/{id}/download", downloadBookHandler)
+		routeur.HandleFunc("/tags_list.html", tagsListHandler)
+		routeur.HandleFunc("/tags/{id}/delete", tagDelete)
 		routeur.HandleFunc("/viewer.js", viewer)
 		routeur.HandleFunc("/sw.js", sw)
 		routeur.HandleFunc("/books/{id}/reader/", bookIndex)
@@ -148,6 +152,9 @@ func main() {
 		routeur.HandleFunc("/", redirectRootHandler)
 
 		n := negroni.Classic()
+		if options.Password != "" {
+			n.Use(negroni.HandlerFunc(authMiddleware))
+		}
 		n.UseHandler(routeur)
 		fmt.Println("launching server version " + version + " listening port " + strconv.Itoa(serverOption.Port))
 		graceful.Run(":"+strconv.Itoa(serverOption.Port), 10*time.Second, n)
@@ -249,11 +256,11 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 			entryOpds(&book, feed)
 		}
 
-		tags := []string{"Science-Fiction", "Fantasy", "Thriller"}
+		tags := []string{"Roman contemporain", "Science-Fiction", "Fantasy", "Thriller"}
 		for _, tag := range tags {
 			link := feed.CreateElement("link")
 			link.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
-			link.CreateAttr("href", "/index.atom?tag="+tag)
+			link.CreateAttr("href", "/index.atom?tag="+strings.Replace(tag, " ", "+", -1))
 			link.CreateAttr("rel", "http://opds-spec.org/sort/popular")
 			link.CreateAttr("title", tag)
 		}
@@ -573,7 +580,7 @@ func fullEntryOpds(book *Book, feed *etree.Element, baseURL string) {
 		linkTag := entry.CreateElement("link")
 		linkTag.CreateAttr("rel", "related")
 		linkTag.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
-		linkTag.CreateAttr("href", baseURL+"/index.atom?tag="+escape(tag.Name))
+		linkTag.CreateAttr("href", baseURL+"/index.atom?tag="+strings.Replace(tag.Name, " ", "+", -1))
 		linkTag.CreateAttr("title", tag.Name)
 	}
 
@@ -703,6 +710,21 @@ func deleteBookHandler(res http.ResponseWriter, req *http.Request) {
 	http.Redirect(res, req, "/index.html", http.StatusTemporaryRedirect)
 }
 
+func downloadBookHandler(res http.ResponseWriter, req *http.Request) {
+	var book Book
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	f, _ := os.Open(book.FilePath())
+
+	res.Header().Set("Content-Disposition", "attachment; filename=\""+book.Title+".epub\"")
+	http.ServeContent(res, req, book.Title+".epub", book.UpdatedAt, f)
+}
+
 func editBookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
 	var bookTemplate *template.Template
@@ -719,6 +741,15 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 		book.Title = req.FormValue("title")
 		book.Description = req.FormValue("description")
 		book.Isbn = req.FormValue("isbn")
+		book.Publisher = req.FormValue("publisher")
+		book.Collection = req.FormValue("collection")
+		book.Serie = req.FormValue("serie")
+		num := req.FormValue("serie_number")
+		numF, errF := strconv.ParseFloat(num, 32)
+		if errF == nil && numF != 0 {
+			book.SerieNumber = float32(numF)
+		}
+
 		db.Unscoped().Where("book_id = ?", book.ID).Delete(BookTag{})
 		tags := strings.Split(req.FormValue("tags"), ",")
 		for _, tag := range tags {
@@ -1082,6 +1113,47 @@ func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
 
 }
 
+func tagsListHandler(res http.ResponseWriter, req *http.Request) {
+	var tags []Tag
+
+	db.Find(&tags)
+
+	tagsTemplate := template.Must(layout.Clone())
+	tagsTemplate = template.Must(tagsTemplate.ParseFiles("template/tags_list.html"))
+	tagsTemplate.Execute(res, Page{Content: tags})
+
+}
+
+func settingsHandler(res http.ResponseWriter, req *http.Request) {
+	var serverOption ServerOption
+
+	if req.Method == http.MethodPost {
+		db.First(&serverOption)
+
+		serverOption.Name = req.FormValue("name")
+		per_page, err := strconv.Atoi(req.FormValue("per_page"))
+		if err == nil {
+			serverOption.NumberBookPerPage = per_page
+		}
+		port, err := strconv.Atoi(req.FormValue("port"))
+		if err == nil {
+			serverOption.Port = port
+		}
+		serverOption.Password = req.FormValue("password")
+
+		db.Save(&serverOption)
+		res.Header().Set("Location", "/index.html")
+		res.WriteHeader(302)
+	} else {
+
+		db.First(&serverOption)
+		settingTemplate := template.Must(layout.Clone())
+		settingTemplate = template.Must(settingTemplate.ParseFiles("template/settings.html"))
+		settingTemplate.Execute(res, Page{Content: serverOption})
+	}
+
+}
+
 func bookIndex(w http.ResponseWriter, req *http.Request) {
 	var err error
 	var book Book
@@ -1120,4 +1192,22 @@ func sw(w http.ResponseWriter, req *http.Request) {
 
 func escape(s string) string {
 	return strings.Replace(url.QueryEscape(s), "+", "%20", -1)
+}
+
+func authMiddleware(res http.ResponseWriter, req *http.Request, next http.HandlerFunc) {
+
+}
+
+func tagDelete(res http.ResponseWriter, req *http.Request) {
+	var tag Tag
+
+	vars := mux.Vars(req)
+	tagID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.First(&tag, tagID)
+
+	if tag.ID != 0 {
+		db.Delete(&tag)
+	}
+	http.Redirect(res, req, "/tags_list.html", http.StatusTemporaryRedirect)
 }
