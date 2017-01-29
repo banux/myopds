@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/feedbooks/webpub-streamer/fetcher"
-	"github.com/feedbooks/webpub-streamer/parser"
+	"github.com/feedbooks/r2-streamer-go/fetcher"
+	"github.com/feedbooks/r2-streamer-go/parser"
 	"github.com/jinzhu/gorm"
 )
 
@@ -69,21 +69,25 @@ func (book *Book) getMetada() {
 	fmt.Println("get Meta for Book " + bookIDStr)
 	filePath := book.FilePath()
 
-	publication, _ := parser.Parse(filePath, "")
+	publication, _ := parser.Parse(filePath)
 
-	authors = make([]Author, len(publication.Metadata.Author), len(publication.Metadata.Author))
+	authors = make([]Author, len(publication.Metadata.Author)+len(publication.Metadata.Contributor), len(publication.Metadata.Author)+len(publication.Metadata.Contributor))
 	for i, creator := range publication.Metadata.Author {
 		db.Where("name = ? ", creator.Name).Find(&authors[i])
 		if authors[i].ID == 0 {
-			authors[i].Name = creator.Name
+			authors[i].Name = creator.Name.String()
 			db.Save(&authors[i])
 		}
 	}
 
-	book.Title = publication.Metadata.Title
+	book.Title = publication.Metadata.Title.String()
 	book.Description = publication.Metadata.Description
 	book.Authors = authors
 	book.Isbn = publication.Metadata.Identifier
+	if publication.Metadata.BelongsTo != nil && len(publication.Metadata.BelongsTo.Series) > 0 {
+		book.Serie = publication.Metadata.BelongsTo.Series[0].Name
+		book.SerieNumber = publication.Metadata.BelongsTo.Series[0].Position
+	}
 	for _, sub := range publication.Metadata.Subject {
 		tag := Tag{}
 		db.Where("name = ?", sub.Name).First(&tag)
