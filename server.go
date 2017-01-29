@@ -237,11 +237,12 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	authorIDStr := req.URL.Query().Get("author_id")
 	authorID, _ := strconv.Atoi(authorIDStr)
 	order := req.URL.Query().Get("order")
+	serie := req.URL.Query().Get("serie")
 
 	fmt.Println(authorID)
-	db.Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookOrder(order)).Find(&books)
+	db.Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookOrder(order)).Scopes(BookwithSerie(serie)).Find(&books)
 
-	db.Model(Book{}).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Count(&booksCount)
+	db.Model(Book{}).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookwithSerie(serie)).Count(&booksCount)
 	if offset+limit > booksCount {
 		nextLink = ""
 	}
@@ -298,6 +299,16 @@ func BookwithCat(category string) func(db *gorm.DB) *gorm.DB {
 			return db
 		}
 		return db.Joins("inner join book_tags on book_tags.book_id = books.id inner join tags on book_tags.tag_id = tags.id").Where("name = ?", category)
+	}
+}
+
+// BookwithSerie scope to get book with specific serie and order it by serie position
+func BookwithSerie(serie string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if serie == "" {
+			return db
+		}
+		return db.Where("serie = ?", serie).Order("serie_number asc")
 	}
 }
 
@@ -566,6 +577,14 @@ func fullEntryOpds(book *Book, feed *etree.Element, baseURL string) {
 			linkCover.CreateAttr("type", "image/png")
 		}
 		linkCover.CreateAttr("href", book.CoverDownloadURL())
+	}
+
+	if book.Serie != "" {
+		serieElem := entry.CreateElement("link")
+		serieElem.CreateAttr("rel", "related")
+		serieElem.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		serieElem.CreateAttr("href", baseURL+"/index.atom?serie="+strings.Replace(book.Serie, " ", "+", -1))
+		serieElem.CreateAttr("title", book.Serie)
 	}
 
 	for _, author := range book.Authors {

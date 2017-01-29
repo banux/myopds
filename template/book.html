@@ -7,7 +7,7 @@
   <div class="col-md-8">
     <h1 class="titre">{{ .Title }}</h1>
     {{ if .Serie }}
-      <h2>{{ .Serie }} - {{ .SerieNumber }}</h2>
+      <h2><a href="/index.html?serie={{ .Serie }}">{{ .Serie }} - {{ .SerieNumber }}</a></h2>
     {{ end }}
     {{ range .Authors }}
       <p class="auteur"><a href="/index.html?author={{ .Name }}">{{ .Name }}</a></p>
