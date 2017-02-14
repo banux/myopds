@@ -75,7 +75,7 @@ func main() {
 	var err error
 	var version = "0.1"
 
-	db, err = gorm.Open("sqlite3", "gopds.db")
+	db, err = gorm.Open("sqlite3", "db/gopds.db")
 	if err != nil {
 		panic(err)
 	}
