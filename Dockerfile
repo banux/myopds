@@ -9,7 +9,7 @@ WORKDIR /go/src/app
 
 COPY . /go/src/app
 
-VOLUME ["/go/src/app/db", "/go/src/app/public/books"]
+#VOLUME ["/go/src/app/db", "/go/src/app/public/books"]
 
 RUN go-wrapper download
 RUN go-wrapper install
