@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/feedbooks/r2-streamer-go/fetcher"
 	"github.com/feedbooks/r2-streamer-go/parser"
@@ -23,8 +22,7 @@ type Author struct {
 // Tag store tag information
 type Tag struct {
 	gorm.Model
-	Name      string
-	DeletedAt time.Time
+	Name string
 }
 
 // BookTag store link beetween book and tag
