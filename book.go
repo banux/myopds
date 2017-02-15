@@ -71,7 +71,7 @@ func (book *Book) getMetada() {
 
 	authors = make([]Author, len(publication.Metadata.Author)+len(publication.Metadata.Contributor), len(publication.Metadata.Author)+len(publication.Metadata.Contributor))
 	for i, creator := range publication.Metadata.Author {
-		db.Where("name = ? ", creator.Name).Find(&authors[i])
+		db.Where("name = ? ", creator.Name.String()).Find(&authors[i])
 		if authors[i].ID == 0 {
 			authors[i].Name = creator.Name.String()
 			db.Save(&authors[i])
