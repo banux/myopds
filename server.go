@@ -36,7 +36,7 @@ type ServerOption struct {
 	Password          string
 	Name              string
 	LastSync          time.Time `sql:"DEFAULT:current_timestamp"`
-	Port              int       `sql:"DEFAULT:80"`
+	Port              int       `sql:"DEFAULT:3000"`
 	NumberBookPerPage int       `sql:"DEFAULT:50"`
 }
 
