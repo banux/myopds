@@ -182,3 +182,10 @@ func (tag *Tag) BeforeDelete() (err error) {
 	}
 	return nil
 }
+
+// AfterSave index after book save
+func (book *Book) AfterSave() (err error) {
+	indexBook(*book)
+
+	return nil
+}

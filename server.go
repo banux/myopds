@@ -75,7 +75,7 @@ func main() {
 	var err error
 	var version = "0.1"
 
-	db, err = gorm.Open("sqlite3", "db/gopds.db")
+	db, err = gorm.Open("sqlite3", "db/myopds.db")
 	if err != nil {
 		panic(err)
 	}
@@ -147,6 +147,7 @@ func main() {
 		routeur.HandleFunc("/books/{id}/reader/index.html", bookIndex)
 		routeur.HandleFunc("/books/{id}/reader/{asset:.*}", getAsset)
 		routeur.HandleFunc("/opensearch.xml", opensearchHandler)
+		routeur.HandleFunc("/reindex", reindexHandler)
 		routeur.HandleFunc("/search.{format}", searchHandler)
 		routeur.HandleFunc("/books/changeTag", changeTagHandler)
 		routeur.HandleFunc("/", redirectRootHandler)
@@ -686,14 +687,6 @@ func searchHandler(res http.ResponseWriter, req *http.Request) {
 
 }
 
-func findBookBySearch(search string) []Book {
-	var books []Book
-
-	search = strings.TrimLeft(search, " ")
-	db.Joins("left join book_authors on books.id = book_authors.book_id left join authors on book_authors.author_id = authors.id").Where("title LIKE ? OR description like ? OR authors.name LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%").Find(&books)
-	return books
-}
-
 // RootURL return url with absolute path
 func RootURL(req *http.Request) string {
 	return "http://" + req.Host
@@ -1229,4 +1222,11 @@ func tagDelete(res http.ResponseWriter, req *http.Request) {
 		db.Delete(&tag)
 	}
 	http.Redirect(res, req, "/tags_list.html", http.StatusTemporaryRedirect)
+}
+
+func reindexHandler(res http.ResponseWriter, req *http.Request) {
+
+	go indexAll()
+	http.Redirect(res, req, "/", http.StatusTemporaryRedirect)
+
 }
