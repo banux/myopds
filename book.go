@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/feedbooks/r2-streamer-go/fetcher"
-	"github.com/feedbooks/r2-streamer-go/parser"
 	"github.com/jinzhu/gorm"
+	"github.com/readium/r2-streamer-go/fetcher"
+	"github.com/readium/r2-streamer-go/parser"
 )
 
 // Author store author information
@@ -55,6 +55,8 @@ type Book struct {
 	CoverType          string
 	Serie              string
 	SerieNumber        float32
+	Favorite           bool
+	Read               bool
 	Authors            []Author `gorm:"many2many:book_authors;"`
 	Tags               []Tag    `gorm:"many2many:book_tags;"`
 }

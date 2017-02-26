@@ -23,6 +23,17 @@
     <p class="resume">{{ .Description }}</p>
     <p>
        <a href="/books/{{ .ID }}/download" class="btn btn-success">Télécharger</a>
+       {{ if .Favorite }}
+          <a href="/books/{{ .ID }}/favorite" class="btn btn-success"><span class="glyphicon glyphicon-heart" aria-hidden="true"></span> Favori</a>
+        {{ else }}
+          <a href="/books/{{ .ID }}/favorite" class="btn btn-success">Favori</a>
+        {{ end }}
+        {{ if .Read }}
+           <a href="/books/{{ .ID }}/readed" class="btn btn-success">Lu</a>
+         {{ else }}
+           <a href="/books/{{ .ID }}/readed" class="btn btn-success">A lire</a>
+         {{ end }}
+        <a href="/books/{{ .ID }}/download" class="btn btn-success">Télécharger</a>
        <a href="/books/{{ .ID }}/reader/" class="btn btn-success">Lire</a>
        <a href="/books/{{ .ID }}/edit" class="btn btn-warning">Editer la fiche</a>
        <a href="/books/{{ .ID }}/delete" class="btn btn-danger">Supprimer</a>

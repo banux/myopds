@@ -136,6 +136,8 @@ func main() {
 		routeur.HandleFunc("/books/{id}.{format}", bookHandler)
 		routeur.HandleFunc("/books/{id}/delete", deleteBookHandler)
 		routeur.HandleFunc("/books/{id}/edit", editBookHandler)
+		routeur.HandleFunc("/books/{id}/favorite", favoriteBookHandler)
+		routeur.HandleFunc("/books/{id}/readed", readedBookHandler)
 		routeur.HandleFunc("/books/{id}/download", downloadBookHandler)
 		routeur.HandleFunc("/tags_list.html", tagsListHandler)
 		routeur.HandleFunc("/tags/{id}/delete", tagDelete)
@@ -239,11 +241,12 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	authorID, _ := strconv.Atoi(authorIDStr)
 	order := req.URL.Query().Get("order")
 	serie := req.URL.Query().Get("serie")
+	filter := req.URL.Query().Get("filter")
 
 	fmt.Println(authorID)
-	db.Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookOrder(order)).Scopes(BookwithSerie(serie)).Find(&books)
+	db.Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookOrder(order)).Scopes(BookwithSerie(serie)).Scopes(BookFilter(filter)).Find(&books)
 
-	db.Model(Book{}).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookwithSerie(serie)).Count(&booksCount)
+	db.Model(Book{}).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookwithSerie(serie)).Scopes(BookFilter(filter)).Count(&booksCount)
 	if offset+limit > booksCount {
 		nextLink = ""
 	}
@@ -313,6 +316,22 @@ func BookwithSerie(serie string) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
+// BookFilter scope to filter book
+func BookFilter(filter string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if filter == "" {
+			return db
+		}
+		if filter == "favorite" {
+			return db.Where("favorite = 1")
+		}
+		if filter == "notread" {
+			return db.Where("read = 1")
+		}
+		return db
+	}
+}
+
 // BookwithAuthor scope to get book with specific author
 func BookwithAuthor(author string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
@@ -336,7 +355,6 @@ func BookwithAuthorID(authorID int) func(db *gorm.DB) *gorm.DB {
 // BookOrder scope to order book
 func BookOrder(order string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		fmt.Println(order)
 		if order == "new" {
 			return db.Order("id desc")
 		}
@@ -720,6 +738,48 @@ func deleteBookHandler(res http.ResponseWriter, req *http.Request) {
 		db.Delete(&book)
 	}
 	http.Redirect(res, req, "/index.html", http.StatusTemporaryRedirect)
+}
+
+func favoriteBookHandler(res http.ResponseWriter, req *http.Request) {
+	var book Book
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	if book.ID != 0 {
+		if book.Favorite == false {
+			book.Favorite = true
+		} else {
+			book.Favorite = false
+		}
+
+		db.Save(&book)
+	}
+	http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
+}
+
+func readedBookHandler(res http.ResponseWriter, req *http.Request) {
+	var book Book
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	if book.ID != 0 {
+		if book.Read == false {
+			book.Read = true
+		} else {
+			book.Read = false
+		}
+
+		db.Save(&book)
+	}
+	http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
 }
 
 func downloadBookHandler(res http.ResponseWriter, req *http.Request) {
