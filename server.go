@@ -56,6 +56,8 @@ type Page struct {
 	Content     interface{}
 	NextPage    string
 	PrevPage    string
+	FirstPage   string
+	LastPage    string
 	FilterBlock bool
 }
 
@@ -139,6 +141,7 @@ func main() {
 		routeur.HandleFunc("/books/{id}/favorite", favoriteBookHandler)
 		routeur.HandleFunc("/books/{id}/readed", readedBookHandler)
 		routeur.HandleFunc("/books/{id}/download", downloadBookHandler)
+		routeur.HandleFunc("/books/{id}/refresh", refreshMetaBookHandler)
 		routeur.HandleFunc("/tags_list.html", tagsListHandler)
 		routeur.HandleFunc("/tags/{id}/delete", tagDelete)
 		routeur.HandleFunc("/viewer.js", viewer)
@@ -195,6 +198,8 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	var offset int
 	var nextLink string
 	var prevLink string
+	var firstLink string
+	var lastLink string
 	var bookTemplate *template.Template
 	type JSONData struct {
 		PrevLink string
@@ -218,6 +223,12 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 			values.Set("page", prevPageStr)
 			prevReq.URL.RawQuery = values.Encode()
 			prevLink = prevReq.URL.String()
+
+			firstReq := req
+			values = firstReq.URL.Query()
+			values.Set("page", "1")
+			firstReq.URL.RawQuery = values.Encode()
+			firstLink = firstReq.URL.String()
 		}
 		nextPageStr := strconv.Itoa(pageInt + 1)
 		nextReq := req
@@ -250,7 +261,16 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	if offset+limit > booksCount {
 		nextLink = ""
 	}
-	lastPage := booksCount / limit
+	lastPage := booksCount/limit + 1
+
+	if lastPage != pageInt {
+		lastPageStr := strconv.Itoa(lastPage)
+		lastReq := req
+		values := lastReq.URL.Query()
+		values.Set("page", lastPageStr)
+		lastReq.URL.RawQuery = values.Encode()
+		lastLink = lastReq.URL.String()
+	}
 
 	vars := mux.Vars(req)
 
@@ -260,6 +280,12 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		for _, book := range books {
 			entryOpds(&book, feed)
 		}
+
+		linkFavorite := feed.CreateElement("link")
+		linkFavorite.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		linkFavorite.CreateAttr("href", "/index.atom?filter=favorite")
+		linkFavorite.CreateAttr("rel", "http://opds-spec.org/sort/popular")
+		linkFavorite.CreateAttr("title", "Favori")
 
 		tags := []string{"Roman contemporain", "Science-Fiction", "Fantasy", "Thriller"}
 		for _, tag := range tags {
@@ -286,6 +312,8 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		err := bookTemplate.Execute(res, Page{
 			PrevPage:    prevLink,
 			NextPage:    nextLink,
+			FirstPage:   firstLink,
+			LastPage:    lastLink,
 			Content:     books,
 			FilterBlock: true,
 		})
@@ -326,7 +354,7 @@ func BookFilter(filter string) func(db *gorm.DB) *gorm.DB {
 			return db.Where("favorite = 1")
 		}
 		if filter == "notread" {
-			return db.Where("read = 1")
+			return db.Where("read = 0")
 		}
 		return db
 	}
@@ -757,6 +785,21 @@ func favoriteBookHandler(res http.ResponseWriter, req *http.Request) {
 		}
 
 		db.Save(&book)
+	}
+	http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
+}
+
+func refreshMetaBookHandler(res http.ResponseWriter, req *http.Request) {
+	var book Book
+
+	vars := mux.Vars(req)
+
+	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
+
+	db.Find(&book, bookID)
+
+	if book.ID != 0 {
+		book.getMetada()
 	}
 	http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
 }

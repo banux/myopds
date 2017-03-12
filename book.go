@@ -108,16 +108,18 @@ func (book *Book) getMetada() {
 	if os.IsNotExist(err) {
 
 		os.MkdirAll(coverDirPath, os.ModePerm)
-		coverFile, err := os.Create(coverFilePath)
-		if err != nil {
-			fmt.Println(err)
+		coverReader, _, errFetch := fetcher.Fetch(publication, linkCover.Href)
+		if errFetch == nil {
+			coverFile, err := os.Create(coverFilePath)
+			if err != nil {
+				fmt.Println(err)
+			}
+			io.Copy(coverFile, coverReader)
+			defer coverFile.Close()
+			book.CoverType = linkCover.TypeLink
+			book.CoverPath = coverFilePath
 		}
-		coverReader, _, _ := fetcher.Fetch(publication, linkCover.Href)
-		io.Copy(coverFile, coverReader)
-		defer coverFile.Close()
 	}
-	book.CoverType = linkCover.TypeLink
-	book.CoverPath = coverFilePath
 	db.Save(&book)
 }
 
