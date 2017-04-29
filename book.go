@@ -80,6 +80,16 @@ func (book *Book) getMetada() {
 		}
 	}
 
+	if len(authors) == 0 {
+		for i, creator := range publication.Metadata.Contributor {
+			db.Where("name = ? ", creator.Name.String()).Find(&authors[i])
+			if authors[i].ID == 0 {
+				authors[i].Name = creator.Name.String()
+				db.Save(&authors[i])
+			}
+		}
+	}
+
 	book.Title = publication.Metadata.Title.String()
 	book.Description = publication.Metadata.Description
 	book.Authors = authors
@@ -102,22 +112,30 @@ func (book *Book) getMetada() {
 	db.Save(&book)
 
 	linkCover, _ := publication.GetCover()
-	coverDirPath := "public/books/" + bookIDStr
-	coverFilePath := coverDirPath + "/" + bookIDStr + filepath.Ext(linkCover.Href)
-	_, err := os.Open(coverFilePath)
-	if os.IsNotExist(err) {
+	if linkCover.Href == "" && len(publication.Landmarks) > 0 {
+		if filepath.Ext(publication.Landmarks[0].Href) == "jpg" || filepath.Ext(publication.Landmarks[0].Href) == "jpeg" || filepath.Ext(publication.Landmarks[0].Href) == "png" {
+			linkCover = publication.Landmarks[0]
+		}
+	}
 
-		os.MkdirAll(coverDirPath, os.ModePerm)
-		coverReader, _, errFetch := fetcher.Fetch(publication, linkCover.Href)
-		if errFetch == nil {
-			coverFile, err := os.Create(coverFilePath)
-			if err != nil {
-				fmt.Println(err)
+	if linkCover.Href != "" {
+		coverDirPath := "public/books/" + bookIDStr
+		coverFilePath := coverDirPath + "/" + bookIDStr + filepath.Ext(linkCover.Href)
+		_, err := os.Open(coverFilePath)
+		if os.IsNotExist(err) {
+
+			os.MkdirAll(coverDirPath, os.ModePerm)
+			coverReader, _, errFetch := fetcher.Fetch(&publication, linkCover.Href)
+			if errFetch == nil {
+				coverFile, err := os.Create(coverFilePath)
+				if err != nil {
+					fmt.Println(err)
+				}
+				io.Copy(coverFile, coverReader)
+				defer coverFile.Close()
+				book.CoverType = linkCover.TypeLink
+				book.CoverPath = coverFilePath
 			}
-			io.Copy(coverFile, coverReader)
-			defer coverFile.Close()
-			book.CoverType = linkCover.TypeLink
-			book.CoverPath = coverFilePath
 		}
 	}
 	db.Save(&book)
@@ -192,4 +210,12 @@ func (book *Book) AfterSave() (err error) {
 	indexBook(*book)
 
 	return nil
+}
+
+// CountBooks get number of books by tag
+func (tag *Tag) CountBooks() int {
+	var count int
+
+	db.Model(&Book{}).Joins("inner join book_tags on book_tags.book_id = books.id inner join tags on book_tags.tag_id = tags.id").Where("tags.id = ?", tag.ID).Count(&count)
+	return count
 }

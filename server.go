@@ -287,7 +287,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		linkFavorite.CreateAttr("rel", "http://opds-spec.org/sort/popular")
 		linkFavorite.CreateAttr("title", "Favori")
 
-		tags := []string{"Roman contemporain", "Science-Fiction", "Fantasy", "Thriller"}
+		tags := []string{"Roman", "Science-Fiction", "Fantasy", "Thriller", "Romance"}
 		for _, tag := range tags {
 			link := feed.CreateElement("link")
 			link.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
@@ -1231,7 +1231,7 @@ func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
 func tagsListHandler(res http.ResponseWriter, req *http.Request) {
 	var tags []Tag
 
-	db.Find(&tags)
+	db.Order("name asc").Find(&tags)
 
 	tagsTemplate := template.Must(layout.Clone())
 	tagsTemplate = template.Must(tagsTemplate.ParseFiles("template/tags_list.html"))

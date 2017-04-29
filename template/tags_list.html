@@ -3,8 +3,7 @@
     <thead>
         <tr>
           <th>Nom</th>
-        </tr>
-        <tr>
+          <th>Nombre de livre</th>
           <th>Actions</th>
         </tr>
     </thead>
@@ -13,6 +12,9 @@
       <tr>
         <td>
           <a href="{{ .ToURL }}">{{ .Name }}</a>
+        </td>
+        <td>
+          {{ .CountBooks }}
         </td>
         <td>
           <a href="/tags/{{ .ID }}/delete">Supprimer</a>
