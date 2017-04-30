@@ -1,11 +1,11 @@
 {{define "content"}}
-  <form method="post" action="/settings">
+  <form method="post" action="/settings.html">
     <div class="form-group">
       <label for="name">Nom</label>
       <input type="text" class="form-control" id="name" name="name" placeholder="MyOPDS" value="{{ .Name }}">
     </div>
     <div class="form-group">
-      <label for="password">Mot de passe</label>
+      <label for="password">Mot de passe (le login sera "opds")</label>
       <input type="text" class="form-control" id="password" name="password" placeholder="" value="{{ .Password }}">
     </div>
     <div class="form-group">

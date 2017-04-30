@@ -113,28 +113,36 @@ func (book *Book) getMetada() {
 
 	linkCover, _ := publication.GetCover()
 	if linkCover.Href == "" && len(publication.Landmarks) > 0 {
-		if filepath.Ext(publication.Landmarks[0].Href) == "jpg" || filepath.Ext(publication.Landmarks[0].Href) == "jpeg" || filepath.Ext(publication.Landmarks[0].Href) == "png" {
+		if filepath.Ext(publication.Landmarks[0].Href) == ".jpg" || filepath.Ext(publication.Landmarks[0].Href) == ".jpeg" || filepath.Ext(publication.Landmarks[0].Href) == ".png" {
 			linkCover = publication.Landmarks[0]
 		}
 	}
 
+	coverFilePath := ""
 	if linkCover.Href != "" {
 		coverDirPath := "public/books/" + bookIDStr
-		coverFilePath := coverDirPath + "/" + bookIDStr + filepath.Ext(linkCover.Href)
-		_, err := os.Open(coverFilePath)
-		if os.IsNotExist(err) {
+		if strings.ToLower(filepath.Ext(linkCover.Href)) == ".jpeg" || strings.ToLower(filepath.Ext(linkCover.Href)) == ".jpg" {
+			coverFilePath = coverDirPath + "/" + bookIDStr + ".jpg"
+		} else if strings.ToLower(filepath.Ext(linkCover.Href)) == ".png" {
+			coverFilePath = coverDirPath + "/" + bookIDStr + ".png"
+		}
+		fmt.Println(coverFilePath)
+		if coverFilePath != "" {
+			_, err := os.Open(coverFilePath)
+			if os.IsNotExist(err) {
 
-			os.MkdirAll(coverDirPath, os.ModePerm)
-			coverReader, _, errFetch := fetcher.Fetch(&publication, linkCover.Href)
-			if errFetch == nil {
-				coverFile, err := os.Create(coverFilePath)
-				if err != nil {
-					fmt.Println(err)
+				os.MkdirAll(coverDirPath, os.ModePerm)
+				coverReader, _, errFetch := fetcher.Fetch(&publication, linkCover.Href)
+				if errFetch == nil {
+					coverFile, err := os.Create(coverFilePath)
+					if err != nil {
+						fmt.Println(err)
+					}
+					io.Copy(coverFile, coverReader)
+					defer coverFile.Close()
+					book.CoverType = linkCover.TypeLink
+					book.CoverPath = coverFilePath
 				}
-				io.Copy(coverFile, coverReader)
-				defer coverFile.Close()
-				book.CoverType = linkCover.TypeLink
-				book.CoverPath = coverFilePath
 			}
 		}
 	}

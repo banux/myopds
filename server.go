@@ -17,6 +17,7 @@ import (
 
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
+	auth "github.com/banux/negroni-auth"
 	"github.com/beevik/etree"
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
@@ -124,13 +125,6 @@ func main() {
 
 		layout = template.Must(template.ParseFiles("template/layout.html"))
 
-		// lis, _ := net.Listen("tcp", ":50051")
-		// s := grpc.NewServer()
-		// book.RegisterUploaderServer(s, &server{})
-		// if err := s.Serve(lis); err != nil {
-		// 	log.Fatalf("failed to serve: %v", err)
-		// }
-
 		routeur := mux.NewRouter()
 		routeur.HandleFunc("/index.{format}", rootHandler)
 		routeur.HandleFunc("/settings.html", settingsHandler)
@@ -159,7 +153,7 @@ func main() {
 
 		n := negroni.Classic()
 		if options.Password != "" {
-			n.Use(negroni.HandlerFunc(authMiddleware))
+			n.Use(auth.Basic("opds", options.Password))
 		}
 		n.UseHandler(routeur)
 		fmt.Println("launching server version " + version + " listening port " + strconv.Itoa(serverOption.Port))
@@ -254,7 +248,6 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	serie := req.URL.Query().Get("serie")
 	filter := req.URL.Query().Get("filter")
 
-	fmt.Println(authorID)
 	db.Limit(limit).Offset(offset).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookOrder(order)).Scopes(BookwithSerie(serie)).Scopes(BookFilter(filter)).Find(&books)
 
 	db.Model(Book{}).Scopes(BookwithCat(tag)).Scopes(BookwithAuthorID(authorID)).Scopes(BookwithAuthor(author)).Scopes(BookwithSerie(serie)).Scopes(BookFilter(filter)).Count(&booksCount)
@@ -740,13 +733,9 @@ func RootURL(req *http.Request) string {
 
 func changeTagHandler(res http.ResponseWriter, req *http.Request) {
 
-	action := req.URL.Query().Get("action")
-	tag := req.URL.Query().Get("tag")
-	bookID := req.URL.Query().Get("id")
-
-	fmt.Println(action)
-	fmt.Println(tag)
-	fmt.Println(bookID)
+	// action := req.URL.Query().Get("action")
+	// tag := req.URL.Query().Get("tag")
+	// bookID := req.URL.Query().Get("id")
 
 }
 
@@ -873,8 +862,6 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 			tagsObjs = append(tagsObjs, tagObj)
 		}
 		book.Tags = tagsObjs
-		fmt.Println(book.Tags)
-		fmt.Println(req.PostForm)
 		db.Save(&book)
 		http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
 	} else {
@@ -929,7 +916,6 @@ func importFile(filePath string) Book {
 	book.Edited = false
 	db.Save(&book)
 
-	fmt.Println(filePath)
 	moveEpub(filePath, &book)
 	book.getMetada()
 	return book
