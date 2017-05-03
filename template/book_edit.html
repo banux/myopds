@@ -4,12 +4,15 @@
       <label for="title">Titre</label>
       <input type="text" class="form-control" id="title" name="title" placeholder="Titre" value="{{ .Title }}">
     </div>
-    {{ range .Authors }}
-      <div class="form-group">
-        <label for="author">Auteur</label>
-        <input type="text" class="form-control" id="author" name="author[]" placeholder="Autheur" value="{{ .Name }}">
-      </div>
-    {{ end }}
+    <div id="authors">
+      {{ range .Authors }}
+        <div class="form-group">
+          <label for="author">Auteur</label>
+          <input type="text" class="form-control" id="author" name="author" placeholder="Autheur" value="{{ .Name }}">
+        </div>
+      {{ end }}
+    </div>
+    <a href="#" id="add_author">Ajout d'un auteur</a>
     <div class="form-group">
       <label for="isbn">ISBN</label>
       <input type="text" class="form-control" id="isbn" name="isbn" placeholder="ISBN" value="{{ .Isbn }}">

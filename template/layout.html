@@ -149,4 +149,11 @@
     </div> <!-- container -->
   </body>
 
+<script>
+  var html = '<div class="form-group"><label for="author">Auteur</label><input type="text" class="form-control" id="author" name="author" placeholder="Autheur"></div>'
+  $("#add_author").on("click", function(e) {
+    e.preventDefault();
+    $("#authors").append(html)
+  })
+</script
 </html>

@@ -820,12 +820,14 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 	var bookTemplate *template.Template
 	var tagsObjs []Tag
 	var tagObj Tag
+	var authorStruct Author
+	var authors []Author
 
 	vars := mux.Vars(req)
 
 	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
 
-	db.Find(&book, bookID)
+	db.Preload("Authors").Find(&book, bookID)
 
 	if req.Method == http.MethodPost {
 		book.Title = req.FormValue("title")
@@ -848,6 +850,20 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 			tagsObjs = append(tagsObjs, tagObj)
 		}
 		book.Tags = tagsObjs
+
+		author := req.FormValue("author")
+		fmt.Println("author " + author)
+		if author != "" {
+			db.Where("name = ? ", author).Find(&authorStruct)
+			if authorStruct.ID == 0 {
+				authorStruct.Name = author
+				db.Save(&authorStruct)
+			}
+			authors = append(authors, authorStruct)
+		}
+		db.Model(&book).Association("Authors").Clear()
+		book.Authors = authors
+
 		db.Save(&book)
 		http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
 	} else {
