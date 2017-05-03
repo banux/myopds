@@ -157,13 +157,6 @@ func (book *Book) DownloadURL() string {
 	return epubFilePath
 }
 
-// ReaderURL return the reader base url
-func (book *Book) ReaderURL() string {
-	bookIDStr := strconv.Itoa(int(book.ID))
-	readerPath := "/books/" + bookIDStr + "/reader/"
-	return readerPath
-}
-
 // FilePath get filepath for the book on os
 func (book *Book) FilePath() string {
 	bookIDStr := strconv.Itoa(int(book.ID))

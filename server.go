@@ -1,7 +1,6 @@
 package main
 
 import (
-	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
@@ -29,6 +27,7 @@ import (
 
 const jpgMediaType = "image/jpeg"
 const pngMediaType = "image/png"
+const atomExt = "atom"
 
 // ServerOption store the option for the server
 type ServerOption struct {
@@ -138,13 +137,6 @@ func main() {
 		routeur.HandleFunc("/books/{id}/refresh", refreshMetaBookHandler)
 		routeur.HandleFunc("/tags_list.html", tagsListHandler)
 		routeur.HandleFunc("/tags/{id}/delete", tagDelete)
-		routeur.HandleFunc("/viewer.js", viewer)
-		routeur.HandleFunc("/sw.js", sw)
-		routeur.HandleFunc("/books/{id}/reader/", bookIndex)
-		routeur.HandleFunc("/books/{id}/reader/manifest.json", getManifest)
-		routeur.HandleFunc("/books/{id}/reader/webapp.webmanifest", getWebAppManifest)
-		routeur.HandleFunc("/books/{id}/reader/index.html", bookIndex)
-		routeur.HandleFunc("/books/{id}/reader/{asset:.*}", getAsset)
 		routeur.HandleFunc("/opensearch.xml", opensearchHandler)
 		routeur.HandleFunc("/reindex", reindexHandler)
 		routeur.HandleFunc("/search.{format}", searchHandler)
@@ -188,7 +180,6 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	var serverOption ServerOption
 	var page string
 	var pageInt = 1
-	var limit = 0
 	var offset int
 	var nextLink string
 	var prevLink string
@@ -238,7 +229,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		nextLink = nextReq.URL.String()
 	}
 
-	limit = serverOption.NumberBookPerPage
+	limit := serverOption.NumberBookPerPage
 	offset = limit * (pageInt - 1)
 	tag := req.URL.Query().Get("tag")
 	author := req.URL.Query().Get("author")
@@ -267,7 +258,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 
 	vars := mux.Vars(req)
 
-	if vars["format"] == "atom" {
+	if vars["format"] == atomExt {
 		res.Header().Set("Content-Type", "application/atom+xml")
 		feed := baseOpds(baseDoc, serverOption.UUID, serverOption.Name, booksCount, serverOption.NumberBookPerPage, offset+1, prevLink, nextLink)
 		for _, book := range books {
@@ -527,7 +518,7 @@ func entryOpds(book *Book, feed *etree.Element) {
 	summary.CreateCharData(book.Description)
 
 	link := entry.CreateElement("link")
-	link.CreateAttr("rel", "http://opds-spec.org/acquisition")
+	link.CreateAttr("rel", "http://opds-spec.org/acquisition/open-access")
 	link.CreateAttr("type", "application/epub+zip")
 	link.CreateAttr("href", book.DownloadURL())
 
@@ -599,14 +590,9 @@ func fullEntryOpds(book *Book, feed *etree.Element, baseURL string) {
 	}
 
 	link := entry.CreateElement("link")
-	link.CreateAttr("rel", "http://opds-spec.org/acquisition")
+	link.CreateAttr("rel", "http://opds-spec.org/acquisition/open-access")
 	link.CreateAttr("type", "application/epub+zip")
-	link.CreateAttr("href", book.DownloadURL())
-
-	linkReader := entry.CreateElement("link")
-	linkReader.CreateAttr("rel", "related")
-	linkReader.CreateAttr("type", "text/html")
-	linkReader.CreateAttr("href", book.ReaderURL())
+	link.CreateAttr("href", baseURL+book.DownloadURL())
 
 	if book.CoverDownloadURL() != "" {
 		linkCover := entry.CreateElement("link")
@@ -616,7 +602,7 @@ func fullEntryOpds(book *Book, feed *etree.Element, baseURL string) {
 		} else if book.CoverType == "image/png" {
 			linkCover.CreateAttr("type", "image/png")
 		}
-		linkCover.CreateAttr("href", book.CoverDownloadURL())
+		linkCover.CreateAttr("href", baseURL+book.CoverDownloadURL())
 	}
 
 	if book.Serie != "" {
@@ -951,269 +937,6 @@ func moveEpub(filepath string, book *Book) {
 	}
 }
 
-func getManifest(w http.ResponseWriter, req *http.Request) {
-	var opfFileName string
-	var manifestStruct Manifest
-	var metaStruct Metadata
-	var book Book
-
-	metaStruct.Modified = time.Now()
-
-	vars := mux.Vars(req)
-
-	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
-
-	db.Find(&book, bookID)
-
-	filenamePath := book.FilePath()
-
-	self := Link{
-		Rel:      "self",
-		Href:     "http://" + req.Host + "/books/" + vars["id"] + "/reader/manifest.json",
-		TypeLink: "application/json",
-	}
-	manifestStruct.Links = make([]Link, 1)
-	manifestStruct.Resources = make([]Link, 0)
-	manifestStruct.Resources = make([]Link, 0)
-	manifestStruct.Links[0] = self
-
-	zipReader, err := zip.OpenReader(filenamePath)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	for _, f := range zipReader.File {
-		if f.Name == "META-INF/container.xml" {
-			rc, errOpen := f.Open()
-			if errOpen != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			doc := etree.NewDocument()
-			_, err = doc.ReadFrom(rc)
-			if err == nil {
-				root := doc.SelectElement("container")
-				rootFiles := root.SelectElements("rootfiles")
-				for _, rootFileTag := range rootFiles {
-					rootFile := rootFileTag.SelectElement("rootfile")
-					if rootFile != nil {
-						opfFileName = rootFile.SelectAttrValue("full-path", "")
-					}
-				}
-			} else {
-				fmt.Println(err)
-			}
-			rc.Close()
-		}
-	}
-
-	if opfFileName != "" {
-		for _, f := range zipReader.File {
-			if f.Name == opfFileName {
-				rc, errOpen := f.Open()
-				if errOpen != nil {
-					fmt.Println("error openging " + f.Name)
-				}
-				doc := etree.NewDocument()
-				_, err = doc.ReadFrom(rc)
-				if err == nil {
-					root := doc.SelectElement("package")
-					meta := root.SelectElement("metadata")
-
-					titleTag := meta.SelectElement("title")
-					metaStruct.Title = titleTag.Text()
-
-					langTag := meta.SelectElement("language")
-					metaStruct.Language = langTag.Text()
-
-					identifierTag := meta.SelectElement("identifier")
-					metaStruct.Identifier = identifierTag.Text()
-
-					creatorTag := meta.SelectElement("creator")
-					metaStruct.Author = creatorTag.Text()
-
-					bookManifest := root.SelectElement("manifest")
-					itemsManifest := bookManifest.SelectElements("item")
-					for _, item := range itemsManifest {
-						linkItem := Link{}
-						linkItem.TypeLink = item.SelectAttrValue("media-type", "")
-						linkItem.Href = item.SelectAttrValue("href", "")
-						if linkItem.TypeLink == "application/xhtml+xml" {
-							manifestStruct.Spine = append(manifestStruct.Spine, linkItem)
-						} else {
-							manifestStruct.Resources = append(manifestStruct.Resources, linkItem)
-						}
-					}
-
-					manifestStruct.Metadata = metaStruct
-					j, _ := json.Marshal(manifestStruct)
-					w.Header().Set("Content-Type", "application/json")
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-					w.Write(j)
-					return
-				}
-			}
-		}
-	}
-
-}
-
-func getAsset(w http.ResponseWriter, req *http.Request) {
-	var opfFileName string
-	var book Book
-	var resourcePath string
-
-	vars := mux.Vars(req)
-	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
-
-	db.Find(&book, bookID)
-
-	filename := book.FilePath()
-
-	assetname := vars["asset"]
-
-	zipReader, err := zip.OpenReader(filename)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	for _, f := range zipReader.File {
-		if f.Name == "META-INF/container.xml" {
-			rc, errOpen := f.Open()
-			if errOpen != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			doc := etree.NewDocument()
-			_, err = doc.ReadFrom(rc)
-			if err == nil {
-				root := doc.SelectElement("container")
-				rootFiles := root.SelectElements("rootfiles")
-				for _, rootFileTag := range rootFiles {
-					rootFile := rootFileTag.SelectElement("rootfile")
-					if rootFile != nil {
-						opfFileName = rootFile.SelectAttrValue("full-path", "")
-					}
-				}
-			} else {
-				fmt.Println(err)
-			}
-			rc.Close()
-		}
-	}
-
-	if strings.Contains(opfFileName, "/") {
-		resourcePath = strings.Split(opfFileName, "/")[0]
-	}
-
-	for _, f := range zipReader.File {
-		checkName := assetname
-		if resourcePath != "" {
-			checkName = resourcePath + "/" + assetname
-		}
-		if f.Name == checkName {
-			rc, errOpen := f.Open()
-			if errOpen != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			buff, _ := ioutil.ReadAll(rc)
-			defer rc.Close()
-			extension := filepath.Ext(f.Name)
-			if extension == ".css" {
-				w.Header().Set("Content-Type", "text/css")
-			}
-			if extension == ".xml" {
-				w.Header().Set("Content-Type", "application/xhtml+xml")
-			}
-			if extension == ".js" {
-				w.Header().Set("Content-Type", "text/javascript")
-			}
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Write(buff)
-			return
-		}
-	}
-
-}
-
-func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
-	var opfFileName string
-	var webapp AppInstall
-	var book Book
-
-	vars := mux.Vars(req)
-	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
-
-	db.Find(&book, bookID)
-
-	filename := book.FilePath()
-
-	webapp.Display = "standalone"
-	webapp.StartURL = "index.html"
-	webapp.Icons = Icon{
-		Size:      "144x144",
-		Src:       "/logo.png",
-		MediaType: "image/png",
-	}
-
-	zipReader, err := zip.OpenReader(filename)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	for _, f := range zipReader.File {
-		if f.Name == "META-INF/container.xml" {
-			rc, errOpen := f.Open()
-			if errOpen != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			doc := etree.NewDocument()
-			_, err = doc.ReadFrom(rc)
-			if err == nil {
-				root := doc.SelectElement("container")
-				rootFiles := root.SelectElements("rootfiles")
-				for _, rootFileTag := range rootFiles {
-					rootFile := rootFileTag.SelectElement("rootfile")
-					if rootFile != nil {
-						opfFileName = rootFile.SelectAttrValue("full-path", "")
-					}
-				}
-			} else {
-				fmt.Println(err)
-			}
-			rc.Close()
-		}
-	}
-
-	if opfFileName != "" {
-		for _, f := range zipReader.File {
-			if f.Name == opfFileName {
-				rc, errOpen := f.Open()
-				if errOpen != nil {
-					fmt.Println("error openging " + f.Name)
-				}
-				doc := etree.NewDocument()
-				_, err = doc.ReadFrom(rc)
-				if err == nil {
-					root := doc.SelectElement("package")
-					meta := root.SelectElement("metadata")
-
-					titleTag := meta.SelectElement("title")
-					webapp.Name = titleTag.Text()
-					webapp.ShortName = titleTag.Text()
-
-					j, _ := json.Marshal(webapp)
-					w.Header().Set("Content-Type", "application/json")
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-					w.Write(j)
-					return
-				}
-			}
-		}
-	}
-
-}
-
 func tagsListHandler(res http.ResponseWriter, req *http.Request) {
 	var tags []Tag
 
@@ -1232,9 +955,9 @@ func settingsHandler(res http.ResponseWriter, req *http.Request) {
 		db.First(&serverOption)
 
 		serverOption.Name = req.FormValue("name")
-		per_page, err := strconv.Atoi(req.FormValue("per_page"))
+		perPage, err := strconv.Atoi(req.FormValue("per_page"))
 		if err == nil {
-			serverOption.NumberBookPerPage = per_page
+			serverOption.NumberBookPerPage = perPage
 		}
 		port, err := strconv.Atoi(req.FormValue("port"))
 		if err == nil {
@@ -1253,42 +976,6 @@ func settingsHandler(res http.ResponseWriter, req *http.Request) {
 		settingTemplate.Execute(res, Page{Content: serverOption})
 	}
 
-}
-
-func bookIndex(w http.ResponseWriter, req *http.Request) {
-	var err error
-	var book Book
-
-	vars := mux.Vars(req)
-	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
-
-	db.Find(&book, bookID)
-
-	filename := book.FilePath()
-
-	t, err := template.ParseFiles("template/viewer_index.html") // Parse template file.
-	if err != nil {
-		fmt.Println(err)
-	}
-	t.Execute(w, filename) // merge.
-}
-
-func viewer(w http.ResponseWriter, req *http.Request) {
-
-	f, _ := os.OpenFile("public/viewer.js", os.O_RDONLY, 666)
-	buff, _ := ioutil.ReadAll(f)
-
-	w.Header().Set("Content-Type", "text/javascript")
-	w.Write(buff)
-}
-
-func sw(w http.ResponseWriter, req *http.Request) {
-
-	f, _ := os.OpenFile("public/sw.js", os.O_RDONLY, 666)
-	buff, _ := ioutil.ReadAll(f)
-
-	w.Header().Set("Content-Type", "text/javascript")
-	w.Write(buff)
 }
 
 func escape(s string) string {
