@@ -74,6 +74,7 @@ func findBookBySearch(searchTerm string) []Book {
 
 	query := bleve.NewMatchQuery(searchTerm)
 	search := bleve.NewSearchRequest(query)
+	search.Size = 200
 	searchResults, _ := bleveIndex.Search(search)
 
 	for _, r := range searchResults.Hits {
