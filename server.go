@@ -300,6 +300,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 			LastPage:    lastLink,
 			Content:     books,
 			FilterBlock: true,
+			Title:       serverOption.Name,
 		})
 		if err != nil {
 			panic(err)
@@ -383,8 +384,10 @@ func BookOrder(order string) func(db *gorm.DB) *gorm.DB {
 func bookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
 	var bookTemplate *template.Template
+	var serverOption ServerOption
 
 	vars := mux.Vars(req)
+	db.First(&serverOption)
 
 	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
 	db.Preload("Authors").Preload("Tags").Find(&book, bookID)
@@ -394,6 +397,7 @@ func bookHandler(res http.ResponseWriter, req *http.Request) {
 		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book.html"))
 		err := bookTemplate.Execute(res, Page{
 			Content: book,
+			Title:   serverOption.Name,
 		})
 		if err != nil {
 
@@ -680,7 +684,9 @@ func opensearchHandler(res http.ResponseWriter, req *http.Request) {
 func searchHandler(res http.ResponseWriter, req *http.Request) {
 	var xmlString string
 	var bookTemplate *template.Template
+	var serverOption ServerOption
 
+	db.First(&serverOption)
 	search := req.URL.Query().Get("query")
 	books := findBookBySearch(search)
 
@@ -706,6 +712,7 @@ func searchHandler(res http.ResponseWriter, req *http.Request) {
 		bookTemplate = template.Must(bookTemplate.ParseFiles("template/bookcover.html"))
 		err := bookTemplate.Execute(res, Page{
 			Content: books,
+			Title:   serverOption.Name,
 			//			FilterBlock: true,
 		})
 		if err != nil {
@@ -825,8 +832,10 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 	var tagObj Tag
 	var authorStruct Author
 	var authors []Author
+	var serverOption ServerOption
 
 	vars := mux.Vars(req)
+	db.First(&serverOption)
 
 	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
 
@@ -874,6 +883,7 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book_edit.html"))
 		bookTemplate.Execute(res, Page{
 			Content: book,
+			Title:   serverOption.Name,
 		})
 	}
 
@@ -881,7 +891,9 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 
 func newBookHandler(res http.ResponseWriter, req *http.Request) {
 	var bookTemplate *template.Template
+	var serverOption ServerOption
 
+	db.First(&serverOption)
 	if req.Method == http.MethodPost {
 		infile, header, err := req.FormFile("book")
 		if err != nil {
@@ -910,7 +922,7 @@ func newBookHandler(res http.ResponseWriter, req *http.Request) {
 	} else {
 		bookTemplate = template.Must(layout.Clone())
 		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book_new.html"))
-		bookTemplate.Execute(res, Page{})
+		bookTemplate.Execute(res, Page{Title: serverOption.Name})
 	}
 
 }
@@ -958,20 +970,23 @@ func moveEpub(filepath string, book *Book) {
 
 func tagsListHandler(res http.ResponseWriter, req *http.Request) {
 	var tags []Tag
+	var serverOption ServerOption
 
+	db.First(&serverOption)
 	db.Order("name asc").Find(&tags)
 
 	tagsTemplate := template.Must(layout.Clone())
 	tagsTemplate = template.Must(tagsTemplate.ParseFiles("template/tags_list.html"))
-	tagsTemplate.Execute(res, Page{Content: tags})
+	tagsTemplate.Execute(res, Page{Content: tags, Title: serverOption.Name})
 
 }
 
 func settingsHandler(res http.ResponseWriter, req *http.Request) {
 	var serverOption ServerOption
 
+	db.First(&serverOption)
+
 	if req.Method == http.MethodPost {
-		db.First(&serverOption)
 
 		serverOption.Name = req.FormValue("name")
 		perPage, err := strconv.Atoi(req.FormValue("per_page"))
@@ -989,20 +1004,15 @@ func settingsHandler(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(302)
 	} else {
 
-		db.First(&serverOption)
 		settingTemplate := template.Must(layout.Clone())
 		settingTemplate = template.Must(settingTemplate.ParseFiles("template/settings.html"))
-		settingTemplate.Execute(res, Page{Content: serverOption})
+		settingTemplate.Execute(res, Page{Content: serverOption, Title: serverOption.Name})
 	}
 
 }
 
 func escape(s string) string {
 	return strings.Replace(url.QueryEscape(s), "+", "%20", -1)
-}
-
-func authMiddleware(res http.ResponseWriter, req *http.Request, next http.HandlerFunc) {
-
 }
 
 func tagDelete(res http.ResponseWriter, req *http.Request) {
