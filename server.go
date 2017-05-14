@@ -340,6 +340,9 @@ func BookFilter(filter string) func(db *gorm.DB) *gorm.DB {
 		if filter == "notread" {
 			return db.Where("read = 0")
 		}
+		if filter == "read" {
+			return db.Where("read = 1")
+		}
 		return db
 	}
 }
