@@ -137,6 +137,7 @@ func main() {
 		routeur.HandleFunc("/books/{id}/refresh", refreshMetaBookHandler)
 		routeur.HandleFunc("/tags_list.html", tagsListHandler)
 		routeur.HandleFunc("/tags/{id}/delete", tagDelete)
+		routeur.HandleFunc("/tags_completion.json", tagsCompletionHandler)
 		routeur.HandleFunc("/opensearch.xml", opensearchHandler)
 		routeur.HandleFunc("/reindex", reindexHandler)
 		routeur.HandleFunc("/search.{format}", searchHandler)
@@ -979,6 +980,22 @@ func tagsListHandler(res http.ResponseWriter, req *http.Request) {
 	tagsTemplate = template.Must(tagsTemplate.ParseFiles("template/tags_list.html"))
 	tagsTemplate.Execute(res, Page{Content: tags, Title: serverOption.Name})
 
+}
+
+func tagsCompletionHandler(res http.ResponseWriter, req *http.Request) {
+	var tags []Tag
+	var tagsTab []string
+
+	db.Order("name asc").Find(&tags)
+
+	for _, tag := range tags {
+		tagsTab = append(tagsTab, tag.Name)
+	}
+
+	j, _ := json.Marshal(&tagsTab)
+
+	res.Header().Set("Content-Type", "application/json")
+	res.Write(j)
 }
 
 func settingsHandler(res http.ResponseWriter, req *http.Request) {

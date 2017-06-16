@@ -13,12 +13,13 @@
 
     <!-- bootstrap tag css -->
     <link rel="stylesheet" type="text/css" href="/css/bootstrap-tagsinput.css" />
-
+    <link rel="stylesheet" type="text/css" href="/css/typeaheadjs.css" />
     <!-- Add custom CSS here -->
     <link href="/css/custom.css" rel="stylesheet">
     <!-- JavaScript -->
     <script src="/js/jquery-1.10.2.js"></script>
     <script src="/js/bootstrap.js"></script>
+    <script src="/js/typeahead.js"></script>
     <script src="/js/bootstrap-tagsinput.min.js"></script>
 
   </head>
@@ -155,5 +156,28 @@
     e.preventDefault();
     $("#authors").append(html)
   })
-</script
+
+  var tags = new Bloodhound({
+    datumTokenizer: Bloodhound.tokenizers.obj.whitespace('name'),
+    queryTokenizer: Bloodhound.tokenizers.whitespace,
+    prefetch: {
+      url: '/tags_completion.json',
+      filter: function(list) {
+        return $.map(list, function(tag) {
+          return { name: tag }; });
+      }
+    }
+  });
+  tags.initialize();
+
+  $('#tags').tagsinput({
+    typeaheadjs: {
+      name: 'tags',
+      displayKey: 'name',
+      valueKey: 'name',
+      source: tags.ttAdapter()
+    }
+  });
+
+</script>
 </html>
