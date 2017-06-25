@@ -206,13 +206,6 @@ func (tag *Tag) BeforeDelete() (err error) {
 	return nil
 }
 
-// AfterSave index after book save
-func (book *Book) AfterSave() (err error) {
-	indexBook(*book)
-
-	return nil
-}
-
 // CountBooks get number of books by tag
 func (tag *Tag) CountBooks() int {
 	var count int
@@ -220,3 +213,9 @@ func (tag *Tag) CountBooks() int {
 	db.Model(&Book{}).Joins("inner join book_tags on book_tags.book_id = books.id inner join tags on book_tags.tag_id = tags.id").Where("tags.id = ?", tag.ID).Count(&count)
 	return count
 }
+
+type ByBookCount []Tag
+
+func (c ByBookCount) Len() int           { return len(c) }
+func (c ByBookCount) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (c ByBookCount) Less(i, j int) bool { return c[i].CountBooks() > c[j].CountBooks() }

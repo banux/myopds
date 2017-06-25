@@ -1,6 +1,6 @@
 {
 	"ConfigVersion": "0.9",
         "Resources": {
-            "Include": "public,db"
+            "Include": "public,db,template"
         }
 }

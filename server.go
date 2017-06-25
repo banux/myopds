@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -35,6 +36,7 @@ type ServerOption struct {
 	UUID              string
 	Password          string
 	Name              string
+	BaseURL           string
 	LastSync          time.Time `sql:"DEFAULT:current_timestamp"`
 	Port              int       `sql:"DEFAULT:3000"`
 	NumberBookPerPage int       `sql:"DEFAULT:50"`
@@ -139,7 +141,6 @@ func main() {
 		routeur.HandleFunc("/tags/{id}/delete", tagDelete)
 		routeur.HandleFunc("/tags_completion.json", tagsCompletionHandler)
 		routeur.HandleFunc("/opensearch.xml", opensearchHandler)
-		routeur.HandleFunc("/reindex", reindexHandler)
 		routeur.HandleFunc("/search.{format}", searchHandler)
 		routeur.HandleFunc("/books/changeTag", changeTagHandler)
 		routeur.HandleFunc("/", redirectRootHandler)
@@ -187,12 +188,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	var firstLink string
 	var lastLink string
 	var bookTemplate *template.Template
-	type JSONData struct {
-		PrevLink string
-		NextLink string
-		LastPage int
-		Books    []Book
-	}
+	var tags []Tag
 
 	baseDoc := etree.NewDocument()
 	baseDoc.Indent(2)
@@ -262,15 +258,39 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 	if vars["format"] == atomExt {
 		res.Header().Set("Content-Type", "application/atom+xml")
 		feed := baseOpds(baseDoc, serverOption.UUID, serverOption.Name, booksCount, serverOption.NumberBookPerPage, offset+1, prevLink, nextLink)
-		for _, book := range books {
-			entryOpds(&book, feed)
-		}
 
 		linkFavorite := feed.CreateElement("link")
 		linkFavorite.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
 		linkFavorite.CreateAttr("href", "/index.atom?filter=favorite")
 		linkFavorite.CreateAttr("rel", "http://opds-spec.org/sort/popular")
 		linkFavorite.CreateAttr("title", "Favori")
+
+		linkRoot := feed.CreateElement("link")
+		linkRoot.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		linkRoot.CreateAttr("href", "/index.atom?page=1")
+		linkRoot.CreateAttr("rel", "http://opds-spec.org/sort/new")
+		linkRoot.CreateAttr("title", "Recent")
+
+		if page != "" || len(req.URL.Query()) > 1 {
+			for _, book := range books {
+				entryOpds(&book, feed)
+			}
+		} else {
+			db.Find(&tags)
+			sort.Sort(ByBookCount(tags))
+
+			for _, tag := range tags {
+				e := feed.CreateElement("entry")
+				t := e.CreateElement("title")
+				t.SetText(tag.Name)
+				i := e.CreateElement("id")
+				i.SetText(tag.Name)
+				linkTag := e.CreateElement("link")
+				linkTag.CreateAttr("href", "/index.atom?tag="+strings.Replace(tag.Name, " ", "+", -1))
+				linkTag.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+				linkTag.CreateAttr("rel", "http://opds-spec.org/sort/new")
+			}
+		}
 
 		tags := []string{"Roman", "Science-Fiction", "Fantasy", "Thriller", "Romance"}
 		for _, tag := range tags {
@@ -283,14 +303,7 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		xmlString, _ := baseDoc.WriteToString()
 		fmt.Fprintf(res, xmlString)
 	} else if vars["format"] == "json" {
-		data := JSONData{PrevLink: prevLink, NextLink: nextLink}
-		data.LastPage = lastPage + 1
-		data.Books = make([]Book, len(books), len(books))
-		for i, book := range books {
-			data.Books[i] = book
-		}
-		page, _ := json.Marshal(data)
-		fmt.Fprintf(res, string(page))
+		// Use OPDS2 feed
 	} else {
 		bookTemplate = template.Must(layout.Clone())
 		bookTemplate = template.Must(bookTemplate.ParseFiles("template/bookcover.html"))
@@ -725,7 +738,15 @@ func searchHandler(res http.ResponseWriter, req *http.Request) {
 
 // RootURL return url with absolute path
 func RootURL(req *http.Request) string {
-	return "http://" + req.Host
+	var option ServerOption
+
+	db.First(&option)
+
+	if option.BaseURL != "" {
+		return option.BaseURL
+	} else {
+		return "http://" + req.Host
+	}
 }
 
 func changeTagHandler(res http.ResponseWriter, req *http.Request) {
@@ -1044,11 +1065,4 @@ func tagDelete(res http.ResponseWriter, req *http.Request) {
 		db.Delete(&tag)
 	}
 	http.Redirect(res, req, "/tags_list.html", http.StatusTemporaryRedirect)
-}
-
-func reindexHandler(res http.ResponseWriter, req *http.Request) {
-
-	go indexAll()
-	http.Redirect(res, req, "/", http.StatusTemporaryRedirect)
-
 }
