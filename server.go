@@ -84,7 +84,7 @@ func main() {
 		panic(err)
 	}
 
-	db.AutoMigrate(&ServerOption{}, &Service{}, &Book{}, &Author{}, &Tag{}, &ServerOption{}, &BookAuthor{}, &BookTag{})
+	db.AutoMigrate(&ServerOption{}, &Service{}, &Book{}, &Author{}, &Tag{}, &ServerOption{})
 
 	db.First(&serverOption)
 	if serverOption.UUID == "" {
