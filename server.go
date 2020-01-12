@@ -16,14 +16,16 @@ import (
 
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
-	auth "github.com/banux/negroni-auth"
 	"github.com/beevik/etree"
-	"github.com/codegangsta/negroni"
+	sessions "github.com/goincremental/negroni-sessions"
+	"github.com/goincremental/negroni-sessions/cookiestore"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
+	"github.com/markbates/pkger"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/graceful"
+	"github.com/urfave/negroni"
 )
 
 const jpgMediaType = "image/jpeg"
@@ -35,6 +37,7 @@ type ServerOption struct {
 	gorm.Model
 	UUID              string
 	Password          string
+	Token             string
 	Name              string
 	BaseURL           string
 	LastSync          time.Time `sql:"DEFAULT:current_timestamp"`
@@ -143,12 +146,14 @@ func main() {
 		routeur.HandleFunc("/opensearch.xml", opensearchHandler)
 		routeur.HandleFunc("/search.{format}", searchHandler)
 		routeur.HandleFunc("/books/changeTag", changeTagHandler)
+		routeur.HandleFunc("/login.html", loginHandler)
 		routeur.HandleFunc("/", redirectRootHandler)
 
 		n := negroni.Classic()
-		if options.Password != "" {
-			n.Use(auth.Basic("opds", options.Password))
-		}
+
+		store := cookiestore.New([]byte(serverOption.Password))
+		n.Use(sessions.Sessions("myopds", store))
+
 		n.UseHandler(routeur)
 		fmt.Println("launching server version " + version + " listening port " + strconv.Itoa(serverOption.Port))
 		graceful.Run(":"+strconv.Itoa(serverOption.Port), 10*time.Second, n)
@@ -192,8 +197,25 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 
 	baseDoc := etree.NewDocument()
 	baseDoc.Indent(2)
+	vars := mux.Vars(req)
 
 	db.First(&serverOption)
+
+	if serverOption.Password != "" && (vars["format"] == "html") {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
+
+	if serverOption.Token != "" && (vars["format"] == atomExt) {
+		token := req.URL.Query().Get("token")
+		if token != serverOption.Token {
+			res.WriteHeader(401)
+			return
+		}
+	}
 
 	page = req.URL.Query().Get("page")
 	if page != "" {
@@ -253,21 +275,19 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 		lastLink = lastReq.URL.String()
 	}
 
-	vars := mux.Vars(req)
-
 	if vars["format"] == atomExt {
 		res.Header().Set("Content-Type", "application/atom+xml")
 		feed := baseOpds(baseDoc, serverOption.UUID, serverOption.Name, booksCount, serverOption.NumberBookPerPage, offset+1, prevLink, nextLink)
 
 		linkFavorite := feed.CreateElement("link")
 		linkFavorite.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
-		linkFavorite.CreateAttr("href", "/index.atom?filter=favorite")
+		linkFavorite.CreateAttr("href", "/index.atom?filter=favorite&token="+serverOption.Token)
 		linkFavorite.CreateAttr("rel", "http://opds-spec.org/sort/popular")
 		linkFavorite.CreateAttr("title", "Favori")
 
 		linkRoot := feed.CreateElement("link")
 		linkRoot.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
-		linkRoot.CreateAttr("href", "/index.atom?page=1")
+		linkRoot.CreateAttr("href", "/index.atom?page=1&token="+serverOption.Token)
 		linkRoot.CreateAttr("rel", "http://opds-spec.org/sort/new")
 		linkRoot.CreateAttr("title", "Recent")
 
@@ -285,28 +305,32 @@ func rootHandler(res http.ResponseWriter, req *http.Request) {
 				t.SetText(tag.Name)
 				i := e.CreateElement("id")
 				i.SetText(tag.Name)
+				updatedAt := e.CreateElement("updated")
+				updatedAt.SetText(time.Now().Format(time.RFC3339))
 				linkTag := e.CreateElement("link")
-				linkTag.CreateAttr("href", "/index.atom?tag="+strings.Replace(tag.Name, " ", "+", -1))
+				linkTag.CreateAttr("href", "/index.atom?tag="+strings.Replace(tag.Name, " ", "+", -1)+"&token="+serverOption.Token)
 				linkTag.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
 				linkTag.CreateAttr("rel", "http://opds-spec.org/sort/new")
 			}
 		}
 
-		tags := []string{"Roman", "Science-Fiction", "Fantasy", "Thriller", "Romance"}
-		for _, tag := range tags {
-			link := feed.CreateElement("link")
-			link.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
-			link.CreateAttr("href", "/index.atom?tag="+strings.Replace(tag, " ", "+", -1))
-			link.CreateAttr("rel", "http://opds-spec.org/sort/popular")
-			link.CreateAttr("title", tag)
-		}
+		// tags := []string{"Roman", "Science-Fiction", "Fantasy", "Thriller", "Romance"}
+		// for _, tag := range tags {
+		// 	link := feed.CreateElement("link")
+		// 	link.CreateAttr("type", "application/atom+xml;profile=opds-catalog;kind=acquisition")
+		// 	link.CreateAttr("href", "/index.atom?tag="+strings.Replace(tag, " ", "+", -1))
+		// 	link.CreateAttr("rel", "http://opds-spec.org/sort/popular")
+		// 	link.CreateAttr("title", tag)
+		// }
 		xmlString, _ := baseDoc.WriteToString()
 		fmt.Fprintf(res, xmlString)
 	} else if vars["format"] == "json" {
 		// Use OPDS2 feed
 	} else {
 		bookTemplate = template.Must(layout.Clone())
-		bookTemplate = template.Must(bookTemplate.ParseFiles("template/bookcover.html"))
+		templateFile, _ := pkger.Open("/template/bookcover.html")
+		templateData, _ := ioutil.ReadAll(templateFile)
+		bookTemplate = template.Must(bookTemplate.Parse(string(templateData)))
 		err := bookTemplate.Execute(res, Page{
 			PrevPage:    prevLink,
 			NextPage:    nextLink,
@@ -407,8 +431,18 @@ func bookHandler(res http.ResponseWriter, req *http.Request) {
 	db.Preload("Authors").Preload("Tags").Find(&book, bookID)
 
 	if vars["format"] == "html" {
+		if serverOption.Password != "" {
+			if !checkAuth(req) {
+				res.Header().Set("Location", "/login.html")
+				res.WriteHeader(302)
+				return
+			}
+		}
+
 		bookTemplate = template.Must(layout.Clone())
-		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book.html"))
+		templateFile, _ := pkger.Open("/template/book.html")
+		templateData, _ := ioutil.ReadAll(templateFile)
+		bookTemplate = template.Must(bookTemplate.Parse(string(templateData)))
 		err := bookTemplate.Execute(res, Page{
 			Content: book,
 			Title:   serverOption.Name,
@@ -459,7 +493,7 @@ func baseOpds(doc *etree.Document, uuid string, name string, totalResult int, pe
 	title := feed.CreateElement("title")
 	title.SetText(name)
 
-	updatedAt := feed.CreateElement("updated_at")
+	updatedAt := feed.CreateElement("updated")
 	updatedAt.SetText(time.Now().Format(time.RFC3339))
 
 	author := feed.CreateElement("author")
@@ -510,13 +544,16 @@ func baseOpds(doc *etree.Document, uuid string, name string, totalResult int, pe
 
 func entryOpds(book *Book, feed *etree.Element) {
 	var authors []Author
+	var serverOption ServerOption
+
+	db.First(&serverOption)
 
 	entry := feed.CreateElement("entry")
 
 	id := entry.CreateElement("id")
 	id.SetText(strconv.Itoa(int(book.ID)))
 
-	updatedAt := entry.CreateElement("updated_at")
+	updatedAt := entry.CreateElement("updated")
 	updatedAt.SetText(book.UpdatedAt.Format(time.RFC3339))
 
 	title := entry.CreateElement("title")
@@ -556,7 +593,7 @@ func entryOpds(book *Book, feed *etree.Element) {
 
 	linkFull := entry.CreateElement("link")
 	linkFull.CreateAttr("rel", "alternate")
-	linkFull.CreateAttr("href", "/books/"+strconv.Itoa(int(book.ID))+".atom")
+	linkFull.CreateAttr("href", "/books/"+strconv.Itoa(int(book.ID))+".atom?token="+serverOption.Token)
 	linkFull.CreateAttr("type", "application/atom+xml;type=entry;profile=opds-catalog")
 	linkFull.CreateAttr("tile", "Full entry")
 
@@ -564,6 +601,9 @@ func entryOpds(book *Book, feed *etree.Element) {
 
 func fullEntryOpds(book *Book, feed *etree.Element, baseURL string) {
 	var authors []Author
+	var serverOption ServerOption
+
+	db.First(&serverOption)
 
 	entry := feed
 
@@ -575,11 +615,12 @@ func fullEntryOpds(book *Book, feed *etree.Element, baseURL string) {
 	feed.CreateAttr("xmlns:app", "http://www.w3.org/2007/app")
 	feed.CreateAttr("xmlns", "http://www.w3.org/2005/Atom")
 	feed.CreateAttr("xmlns:opensearch", "http://a9.com/-/spec/opensearch/1.1/")
+	feed.CreateAttr("schema", "http://schema.org")
 
 	id := entry.CreateElement("id")
 	id.SetText(strconv.Itoa(int(book.ID)))
 
-	updatedAt := entry.CreateElement("updated_at")
+	updatedAt := entry.CreateElement("updated")
 	updatedAt.SetText(book.UpdatedAt.Format(time.RFC3339))
 
 	title := entry.CreateElement("title")
@@ -722,8 +763,19 @@ func searchHandler(res http.ResponseWriter, req *http.Request) {
 
 		fmt.Fprintf(res, xmlString)
 	} else {
+
+		if serverOption.Password != "" {
+			if !checkAuth(req) {
+				res.Header().Set("Location", "/login.html")
+				res.WriteHeader(302)
+				return
+			}
+		}
+
 		bookTemplate = template.Must(layout.Clone())
-		bookTemplate = template.Must(bookTemplate.ParseFiles("template/bookcover.html"))
+		templateFile, _ := pkger.Open("/template/bookcover.html")
+		templateData, _ := ioutil.ReadAll(templateFile)
+		bookTemplate = template.Must(bookTemplate.Parse(string(templateData)))
 		err := bookTemplate.Execute(res, Page{
 			Content: books,
 			Title:   serverOption.Name,
@@ -762,6 +814,17 @@ func uploadBookForm(res http.ResponseWriter, req *http.Request) {
 
 func deleteBookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
+	var serverOption ServerOption
+
+	db.First(&serverOption)
+
+	if serverOption.Password != "" {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
 
 	vars := mux.Vars(req)
 
@@ -777,6 +840,17 @@ func deleteBookHandler(res http.ResponseWriter, req *http.Request) {
 
 func favoriteBookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
+	var serverOption ServerOption
+
+	db.First(&serverOption)
+
+	if serverOption.Password != "" {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
 
 	vars := mux.Vars(req)
 
@@ -798,6 +872,17 @@ func favoriteBookHandler(res http.ResponseWriter, req *http.Request) {
 
 func refreshMetaBookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
+	var serverOption ServerOption
+
+	db.First(&serverOption)
+
+	if serverOption.Password != "" {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
 
 	vars := mux.Vars(req)
 
@@ -813,6 +898,17 @@ func refreshMetaBookHandler(res http.ResponseWriter, req *http.Request) {
 
 func readedBookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
+	var serverOption ServerOption
+
+	db.First(&serverOption)
+
+	if serverOption.Password != "" {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
 
 	vars := mux.Vars(req)
 
@@ -834,8 +930,18 @@ func readedBookHandler(res http.ResponseWriter, req *http.Request) {
 
 func downloadBookHandler(res http.ResponseWriter, req *http.Request) {
 	var book Book
+	var serverOption ServerOption
 
+	db.First(&serverOption)
 	vars := mux.Vars(req)
+
+	if serverOption.Password != "" && (vars["format"] == "html") {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
 
 	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
 
@@ -858,6 +964,14 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 
 	vars := mux.Vars(req)
 	db.First(&serverOption)
+
+	if serverOption.Password != "" && (vars["format"] == "html") {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
 
 	bookID, _ := strconv.ParseInt(vars["id"], 10, 64)
 
@@ -902,7 +1016,9 @@ func editBookHandler(res http.ResponseWriter, req *http.Request) {
 		http.Redirect(res, req, "/books/"+vars["id"]+".html", http.StatusTemporaryRedirect)
 	} else {
 		bookTemplate = template.Must(layout.Clone())
-		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book_edit.html"))
+		templateFile, _ := pkger.Open("/template/book_edit.html")
+		templateData, _ := ioutil.ReadAll(templateFile)
+		bookTemplate = template.Must(bookTemplate.Parse(string(templateData)))
 		bookTemplate.Execute(res, Page{
 			Content: book,
 			Title:   serverOption.Name,
@@ -916,6 +1032,14 @@ func newBookHandler(res http.ResponseWriter, req *http.Request) {
 	var serverOption ServerOption
 
 	db.First(&serverOption)
+	if serverOption.Password != "" {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
+
 	if req.Method == http.MethodPost {
 		infile, header, err := req.FormFile("book")
 		if err != nil {
@@ -943,7 +1067,9 @@ func newBookHandler(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(302)
 	} else {
 		bookTemplate = template.Must(layout.Clone())
-		bookTemplate = template.Must(bookTemplate.ParseFiles("template/book_new.html"))
+		templateFile, _ := pkger.Open("/template/book_new.html")
+		templateData, _ := ioutil.ReadAll(templateFile)
+		bookTemplate = template.Must(bookTemplate.Parse(string(templateData)))
 		bookTemplate.Execute(res, Page{Title: serverOption.Name})
 	}
 
@@ -995,10 +1121,20 @@ func tagsListHandler(res http.ResponseWriter, req *http.Request) {
 	var serverOption ServerOption
 
 	db.First(&serverOption)
+	if serverOption.Password != "" {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
+
 	db.Order("name asc").Find(&tags)
 
 	tagsTemplate := template.Must(layout.Clone())
-	tagsTemplate = template.Must(tagsTemplate.ParseFiles("template/tags_list.html"))
+	templateFile, _ := pkger.Open("/template/tags_list.html")
+	templateData, _ := ioutil.ReadAll(templateFile)
+	tagsTemplate = template.Must(tagsTemplate.Parse(string(templateData)))
 	tagsTemplate.Execute(res, Page{Content: tags, Title: serverOption.Name})
 
 }
@@ -1023,6 +1159,13 @@ func settingsHandler(res http.ResponseWriter, req *http.Request) {
 	var serverOption ServerOption
 
 	db.First(&serverOption)
+	if serverOption.Password != "" {
+		if !checkAuth(req) {
+			res.Header().Set("Location", "/login.html")
+			res.WriteHeader(302)
+			return
+		}
+	}
 
 	if req.Method == http.MethodPost {
 
@@ -1036,6 +1179,7 @@ func settingsHandler(res http.ResponseWriter, req *http.Request) {
 			serverOption.Port = port
 		}
 		serverOption.Password = req.FormValue("password")
+		serverOption.Token = req.FormValue("token")
 
 		db.Save(&serverOption)
 		res.Header().Set("Location", "/index.html")
@@ -1043,8 +1187,48 @@ func settingsHandler(res http.ResponseWriter, req *http.Request) {
 	} else {
 
 		settingTemplate := template.Must(layout.Clone())
-		settingTemplate = template.Must(settingTemplate.ParseFiles("template/settings.html"))
+		templateFile, _ := pkger.Open("/template/settings.html")
+		templateData, _ := ioutil.ReadAll(templateFile)
+		settingTemplate = template.Must(settingTemplate.Parse(string(templateData)))
 		settingTemplate.Execute(res, Page{Content: serverOption, Title: serverOption.Name})
+	}
+
+}
+
+func checkAuth(req *http.Request) bool {
+	session := sessions.GetSession(req)
+	auth := session.Get("auth")
+	fmt.Println("AUTH : ")
+	fmt.Println(auth)
+	if auth == "OK" {
+		return true
+	}
+	return false
+}
+
+func loginHandler(res http.ResponseWriter, req *http.Request) {
+	var serverOption ServerOption
+
+	db.First(&serverOption)
+
+	if req.Method == http.MethodPost {
+
+		password := req.FormValue("password")
+
+		if password == serverOption.Password {
+			session := sessions.GetSession(req)
+			session.Set("auth", "OK")
+			fmt.Println("set auth")
+		}
+
+		res.Header().Set("Location", "/index.html")
+		res.WriteHeader(302)
+	} else {
+		settingTemplate := template.Must(layout.Clone())
+		templateFile, _ := pkger.Open("/template/login.html")
+		templateData, _ := ioutil.ReadAll(templateFile)
+		settingTemplate = template.Must(settingTemplate.Parse(string(templateData)))
+		settingTemplate.Execute(res, Page{})
 	}
 
 }
