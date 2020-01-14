@@ -2,7 +2,7 @@
 # Make sure to check the documentation at http://goreleaser.com
 before:
   hooks:
-    - sudo apt install -y gcc make libsqlite3-dev
+    - sudo apt install -y gcc make   libsqlite3-dev
     # you may remove this if you don't use vgo
     - go mod tidy
     # you may remove this if you don't need go generate
@@ -15,7 +15,6 @@ archives:
     darwin: Darwin
     linux: Linux
     windows: Windows
-    386: i386
     amd64: x86_64
 checksum:
   name_template: 'checksums.txt'
