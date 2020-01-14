@@ -2,7 +2,7 @@
 # Make sure to check the documentation at http://goreleaser.com
 before:
   hooks:
-    - sudo apt install -y gcc make   libsqlite3-dev
+    - sudo apt install -y gcc make   libsqlite3-dev gcc-multilib
     # you may remove this if you don't use vgo
     - go mod tidy
     # you may remove this if you don't need go generate
